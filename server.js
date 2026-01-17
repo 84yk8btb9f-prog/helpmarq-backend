@@ -14,7 +14,8 @@ connectDB();
 // Middleware
 const allowedOrigins = [
     'http://localhost:8080',
-    'helpmarq-beta.vercel.app'  // ← YOUR Vercel URL
+    'https://sapavault.com',
+    'https://www.sapavault.com'
 ];
 
 app.use(cors({
