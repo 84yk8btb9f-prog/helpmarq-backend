@@ -1,19 +1,32 @@
-const { ClerkExpressRequireAuth } = require('@clerk/clerk-sdk-node');
+const auth = require('../config/auth');
 
-// Middleware to verify Clerk authentication
-const requireAuth = ClerkExpressRequireAuth({
-    onError: (error) => {
+const requireAuth = async (req, res, next) => {
+    try {
+        const session = await auth.api.getSession({
+            headers: req.headers
+        });
+
+        if (!session) {
+            return res.status(401).json({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
+
+        req.user = session.user;
+        req.session = session.session;
+        next();
+    } catch (error) {
         console.error('Auth error:', error);
-        return {
-            status: 401,
-            message: 'Authentication required'
-        };
+        return res.status(401).json({
+            success: false,
+            error: 'Invalid session'
+        });
     }
-});
+};
 
-// Extract user ID from Clerk token
 const getUserId = (req) => {
-    return req.auth?.userId || null;
+    return req.user?.id || null;
 };
 
 module.exports = { requireAuth, getUserId };

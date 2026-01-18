@@ -1,49 +1,52 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { ClerkExpressWithAuth } = require('@clerk/clerk-sdk-node');
 const connectDB = require('./config/database');
-const { startCronJobs } = require('./services/cronJobs');
+const auth = require('./config/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Connect to MongoDB
 connectDB();
 
-// Middleware
-const allowedOrigins = [
-    'http://localhost:8080',
-    'https://sapavault.com',
-    'https://www.sapavault.com'
-];
+// CORS configuration
+const corsOptions = {
+    origin: NODE_ENV === 'production' 
+        ? ['https://helpmarq.vercel.app', 'https://www.helpmarq.com']
+        : ['http://localhost:8080', 'http://127.0.0.1:8080'],
+    credentials: true,
+    optionsSuccessStatus: 200
+};
 
-app.use(cors({
-    origin: function(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true
-}));
+app.use(cors(corsOptions));
 app.use(express.json());
-app.use(ClerkExpressWithAuth());
 
-// Logging
-app.use((req, res, next) => {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${req.method} ${req.url}`);
-    next();
+// Request logging
+if (NODE_ENV === 'development') {
+    app.use((req, res, next) => {
+        const timestamp = new Date().toISOString();
+        console.log(`[${timestamp}] ${req.method} ${req.url}`);
+        next();
+    });
+}
+
+// Health check
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        environment: NODE_ENV,
+        timestamp: new Date().toISOString()
+    });
 });
 
 // Import routes
+const authRouter = require('./routes/auth');
 const projectsRouter = require('./routes/projects');
 const reviewersRouter = require('./routes/reviewers');
 const applicationsRouter = require('./routes/applications');
 const feedbackRouter = require('./routes/feedback');
-const authRouter = require('./routes/auth');
 const statsRouter = require('./routes/stats');
 const notificationsRouter = require('./routes/notifications');
 
@@ -53,23 +56,27 @@ app.get('/', (req, res) => {
         message: 'HelpMarq API - Expert insights. Accessible pricing.',
         version: '2.0',
         status: 'Running',
+        environment: NODE_ENV,
         endpoints: {
+            health: '/health',
             auth: '/api/auth',
             projects: '/api/projects',
             reviewers: '/api/reviewers',
             applications: '/api/applications',
-            feedback: '/api/feedback'
+            feedback: '/api/feedback',
+            stats: '/api/stats',
+            notifications: '/api/notifications'
         }
     });
 });
 
-// Use routes
+// Mount routes
 app.use('/api/auth', authRouter);
 app.use('/api/projects', projectsRouter);
-app.use('/api/stats', statsRouter);
 app.use('/api/reviewers', reviewersRouter);
 app.use('/api/applications', applicationsRouter);
 app.use('/api/feedback', feedbackRouter);
+app.use('/api/stats', statsRouter);
 app.use('/api/notifications', notificationsRouter);
 
 // 404 handler
@@ -82,19 +89,29 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
-    console.error(err.stack);
+    console.error('Error:', err);
+    
+    // Don't leak error details in production
+    const message = NODE_ENV === 'production' 
+        ? 'Internal server error'
+        : err.message;
+    
     res.status(500).json({
         success: false,
-        error: 'Internal server error'
+        error: message
     });
 });
 
 // Start server
 app.listen(PORT, () => {
-    console.log(`🚀 HelpMarq API running on http://localhost:${PORT}`);
-    console.log('📊 MongoDB connected and ready');
-    console.log('🔐 Clerk authentication active');
-    
-    // Start cron jobs
-    startCronJobs();
+    console.log(`🚀 HelpMarq API running on port ${PORT}`);
+    console.log(`📊 Environment: ${NODE_ENV}`);
+    console.log(`🔐 Better Auth configured`);
+    console.log(`📧 Email service ready`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    process.exit(0);
 });

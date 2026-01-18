@@ -1,17 +1,22 @@
 const express = require('express');
 const router = express.Router();
+const auth = require('../config/auth');
 const { requireAuth, getUserId } = require('../middleware/auth');
 const Reviewer = require('../models/Reviewer');
 const Project = require('../models/Project');
+
+// Mount Better Auth API routes
+router.all('/*', (req, res, next) => {
+    return auth.handler(req, res);
+});
 
 // Get current user info
 router.get('/me', requireAuth, async (req, res) => {
     try {
         const userId = getUserId(req);
         
-        // Check if user is a reviewer
-        const reviewer = await Reviewer.findOne({ clerkUserId: userId });
-        
+        // Check if reviewer
+        const reviewer = await Reviewer.findOne({ userId });
         if (reviewer) {
             return res.json({
                 success: true,
@@ -20,21 +25,17 @@ router.get('/me', requireAuth, async (req, res) => {
             });
         }
         
-        // Check if user owns any projects (is an owner)
+        // Check if owner
         const projects = await Project.find({ ownerId: userId });
-        
         if (projects.length > 0) {
             return res.json({
                 success: true,
                 role: 'owner',
-                data: {
-                    userId,
-                    projectCount: projects.length
-                }
+                data: { userId, projectCount: projects.length }
             });
         }
         
-        // New user - no role yet
+        // New user
         res.json({
             success: true,
             role: null,
@@ -49,28 +50,48 @@ router.get('/me', requireAuth, async (req, res) => {
     }
 });
 
-// Create reviewer profile (after Clerk signup)
+// Create reviewer profile (after signup)
 router.post('/create-reviewer', requireAuth, async (req, res) => {
     try {
         const userId = getUserId(req);
         
         console.log('=== CREATE REVIEWER REQUEST ===');
         console.log('User ID:', userId);
-        console.log('Request body:', JSON.stringify(req.body, null, 2));
-        console.log('Body keys:', Object.keys(req.body));
+        console.log('Request body:', req.body);
         
         const { username, email, expertise, experience, portfolio, bio } = req.body;
         
-        console.log('Extracted values:');
-        console.log('- username:', username);
-        console.log('- email:', email);
-        console.log('- expertise:', expertise);
-        console.log('- experience:', experience);
-        console.log('- portfolio:', portfolio);
-        console.log('- bio:', bio ? bio.substring(0, 50) + '...' : 'MISSING');
+        // Validation
+        if (!username || username.length < 3) {
+            return res.status(400).json({
+                success: false,
+                error: 'Username must be at least 3 characters'
+            });
+        }
         
-        // Check if user already has a reviewer profile
-        const existing = await Reviewer.findOne({ clerkUserId: userId });
+        if (!expertise) {
+            return res.status(400).json({
+                success: false,
+                error: 'Expertise is required'
+            });
+        }
+        
+        if (!experience) {
+            return res.status(400).json({
+                success: false,
+                error: 'Experience level is required'
+            });
+        }
+        
+        if (!bio || bio.length < 50) {
+            return res.status(400).json({
+                success: false,
+                error: 'Bio must be at least 50 characters'
+            });
+        }
+        
+        // Check if reviewer already exists
+        const existing = await Reviewer.findOne({ userId });
         if (existing) {
             return res.status(400).json({
                 success: false,
@@ -79,21 +100,18 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
         }
         
         // Create reviewer
-        const reviewerData = {
-            clerkUserId: userId,
+        const reviewer = await Reviewer.create({
+            userId,  // Changed from clerkUserId
             username,
             email,
             expertise,
             experience,
             portfolio: portfolio || '',
             bio
-        };
+        });
         
-        console.log('Creating reviewer with data:', JSON.stringify(reviewerData, null, 2));
+        console.log('✓ Reviewer created:', reviewer._id);
         
-        const reviewer = await Reviewer.create(reviewerData);
-        
-        console.log('✓ Reviewer created successfully:', reviewer._id);
         // Send welcome email
         const { sendEmail } = require('../services/emailService');
         await sendEmail('welcomeReviewer', email, {
@@ -107,6 +125,8 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
         });
         
     } catch (error) {
+        console.error('Create reviewer error:', error);
+        
         if (error.name === 'ValidationError') {
             const errors = Object.values(error.errors).map(err => err.message);
             return res.status(400).json({
@@ -118,7 +138,7 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
-                error: 'Username or email already exists'
+                error: 'Username already exists'
             });
         }
         

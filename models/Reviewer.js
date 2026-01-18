@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const reviewerSchema = new mongoose.Schema({
-    clerkUserId: {
+    userId: {  // Changed from clerkUserId
         type: String,
         required: true,
         unique: true
