@@ -419,3 +419,83 @@ async function sendEmail(templateName, to, data) {
 }
 
 export { sendEmail };
+// === EMAIL HELPER FUNCTIONS ===
+
+export async function sendWelcomeEmail(user, role) {
+    const templateName = role === 'owner' ? 'welcomeOwner' : 'welcomeReviewer';
+    return await sendEmail(templateName, user.email, {
+        name: user.name || user.email
+    });
+}
+
+export async function sendProjectSubmittedEmail(project) {
+    return await sendEmail('projectSubmitted', project.ownerEmail, {
+        name: project.ownerName,
+        projectTitle: project.title
+    });
+}
+
+export async function sendApplicationReceivedEmail(application, project, reviewer) {
+    return await sendEmail('applicationReceived', project.ownerEmail, {
+        name: project.ownerName,
+        projectTitle: project.title,
+        reviewerName: reviewer.username,
+        reviewerLevel: reviewer.level,
+        reviewerXP: reviewer.xp,
+        reviewerReviews: reviewer.totalReviews,
+        reviewerRating: reviewer.averageRating.toFixed(1),
+        qualifications: application.qualifications,
+        focusAreas: application.focusAreas
+    });
+}
+
+export async function sendApplicationApprovedEmail(reviewer, project) {
+    return await sendEmail('applicationApproved', reviewer.email, {
+        projectTitle: project.title,
+        projectType: project.type,
+        projectLink: project.link,
+        ownerName: project.ownerName,
+        xpReward: project.xpReward
+    });
+}
+
+export async function sendApplicationRejectedEmail(reviewer, project) {
+    return await sendEmail('applicationRejected', reviewer.email, {
+        projectTitle: project.title
+    });
+}
+
+export async function sendReviewCompleteEmail(project, feedback, reviewer) {
+    const feedbackPreview = feedback.feedbackText.substring(0, 150);
+    return await sendEmail('reviewComplete', project.ownerEmail, {
+        projectTitle: project.title,
+        reviewerName: reviewer.username,
+        feedbackPreview: feedbackPreview,
+        projectRating: feedback.projectRating
+    });
+}
+
+export async function sendRatingReceivedEmail(reviewer, feedback, project) {
+    const leveledUp = false; // You'll need to calculate this
+    return await sendEmail('ratingReceived', reviewer.email, {
+        projectTitle: project.title,
+        rating: feedback.ownerRating,
+        xpAwarded: feedback.xpAwarded,
+        newLevel: reviewer.level,
+        totalXP: reviewer.xp,
+        totalReviews: reviewer.totalReviews,
+        avgRating: reviewer.averageRating.toFixed(1),
+        leveledUp: leveledUp
+    });
+}
+
+export async function sendDeadlineReminderEmail(reviewer, project) {
+    const now = new Date();
+    const hoursLeft = Math.floor((new Date(project.deadline) - now) / (1000 * 60 * 60));
+    
+    return await sendEmail('deadlineReminder', reviewer.email, {
+        projectTitle: project.title,
+        projectLink: project.link,
+        hoursLeft: hoursLeft
+    });
+}

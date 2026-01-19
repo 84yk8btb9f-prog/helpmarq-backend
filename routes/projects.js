@@ -1,9 +1,11 @@
 import express from 'express';
 import Project from '../models/Project.js';
 import { requireAuth, getUserId } from '../middleware/auth.js';
+import { sendProjectSubmittedEmail } from '../services/emailService.js';
 
 const router = express.Router();
 
+// Get all projects with filters
 router.get('/', async (req, res) => {
     try {
         const { type, minXP, owner, page = 1, limit = 12, sort = 'newest' } = req.query;
@@ -63,6 +65,7 @@ router.get('/', async (req, res) => {
     }
 });
 
+// Get single project
 router.get('/:id', async (req, res) => {
     try {
         const project = await Project.findById(req.params.id);
@@ -86,6 +89,7 @@ router.get('/:id', async (req, res) => {
     }
 });
 
+// Create project
 router.post('/', requireAuth, async (req, res) => {
     try {
         const userId = getUserId(req);
@@ -96,6 +100,14 @@ router.post('/', requireAuth, async (req, res) => {
         };
 
         const project = await Project.create(projectData);
+
+        // 📧 SEND PROJECT SUBMITTED EMAIL
+        try {
+            await sendProjectSubmittedEmail(project);
+            console.log('✓ Project submitted email sent');
+        } catch (emailError) {
+            console.error('Email error (non-blocking):', emailError);
+        }
 
         res.status(201).json({
             success: true,
@@ -118,6 +130,7 @@ router.post('/', requireAuth, async (req, res) => {
     }
 });
 
+// Delete project
 router.delete('/:id', requireAuth, async (req, res) => {
     try {
         const project = await Project.findByIdAndDelete(req.params.id);

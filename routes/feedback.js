@@ -4,6 +4,7 @@ import Application from '../models/Application.js';
 import Project from '../models/Project.js';
 import Reviewer from '../models/Reviewer.js';
 import { requireAuth, getUserId } from '../middleware/auth.js';
+import { sendReviewCompleteEmail, sendRatingReceivedEmail } from '../services/emailService.js';
 
 const router = express.Router();
 
@@ -33,7 +34,7 @@ router.get('/reviewer/:reviewerId', async (req, res) => {
         const feedback = await Feedback.find({ 
             reviewerId: req.params.reviewerId 
         })
-        .populate('projectId', 'title type owner')
+        .populate('projectId', 'title type ownerName')
         .sort({ submittedAt: -1 });
 
         res.json({
@@ -93,6 +94,18 @@ router.post('/', requireAuth, async (req, res) => {
         await Project.findByIdAndUpdate(projectId, {
             $inc: { reviewsCount: 1 }
         });
+
+        // Get project and reviewer for email
+        const project = await Project.findById(projectId);
+        const reviewer = await Reviewer.findById(reviewerId);
+
+        // 📧 SEND REVIEW COMPLETE EMAIL TO OWNER
+        try {
+            await sendReviewCompleteEmail(project, feedback, reviewer);
+            console.log('✓ Review complete email sent to owner');
+        } catch (emailError) {
+            console.error('Email error (non-blocking):', emailError);
+        }
 
         res.status(201).json({
             success: true,
@@ -164,6 +177,8 @@ router.put('/:id/rate', requireAuth, async (req, res) => {
         await feedback.save();
 
         const reviewer = await Reviewer.findById(feedback.reviewerId);
+        const oldLevel = reviewer.level;
+        
         if (reviewer) {
             reviewer.xp += xpAwarded;
             reviewer.totalReviews += 1;
@@ -178,6 +193,17 @@ router.put('/:id/rate', requireAuth, async (req, res) => {
 
             reviewer.updateLevel();
             await reviewer.save();
+        }
+
+        // Get project for email
+        const project = await Project.findById(feedback.projectId);
+
+        // 📧 SEND RATING RECEIVED EMAIL TO REVIEWER
+        try {
+            await sendRatingReceivedEmail(reviewer, feedback, project);
+            console.log('✓ Rating received email sent to reviewer');
+        } catch (emailError) {
+            console.error('Email error (non-blocking):', emailError);
         }
 
         res.json({

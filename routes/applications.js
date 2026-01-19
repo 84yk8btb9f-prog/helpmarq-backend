@@ -3,6 +3,11 @@ import Application from '../models/Application.js';
 import Project from '../models/Project.js';
 import Reviewer from '../models/Reviewer.js';
 import { requireAuth, getUserId } from '../middleware/auth.js';
+import { 
+    sendApplicationReceivedEmail, 
+    sendApplicationApprovedEmail, 
+    sendApplicationRejectedEmail 
+} from '../services/emailService.js';
 
 const router = express.Router();
 
@@ -34,7 +39,7 @@ router.get('/reviewer/:reviewerId', async (req, res) => {
         const applications = await Application.find({ 
             reviewerId: req.params.reviewerId 
         })
-        .populate('projectId', 'title type owner xpReward')
+        .populate('projectId', 'title type ownerName xpReward')
         .sort({ appliedAt: -1 });
 
         res.json({
@@ -95,6 +100,14 @@ router.post('/', requireAuth, async (req, res) => {
             $inc: { applicantsCount: 1 }
         });
 
+        // 📧 SEND APPLICATION RECEIVED EMAIL TO OWNER
+        try {
+            await sendApplicationReceivedEmail(application, project, reviewer);
+            console.log('✓ Application received email sent to owner');
+        } catch (emailError) {
+            console.error('Email error (non-blocking):', emailError);
+        }
+
         res.status(201).json({
             success: true,
             message: 'Application submitted successfully',
@@ -150,6 +163,18 @@ router.put('/:id/approve', requireAuth, async (req, res) => {
             $inc: { approvedCount: 1 }
         });
 
+        // Get reviewer and project for email
+        const reviewer = await Reviewer.findById(application.reviewerId);
+        const project = await Project.findById(application.projectId);
+
+        // 📧 SEND APPROVAL EMAIL TO REVIEWER
+        try {
+            await sendApplicationApprovedEmail(reviewer, project);
+            console.log('✓ Application approved email sent to reviewer');
+        } catch (emailError) {
+            console.error('Email error (non-blocking):', emailError);
+        }
+
         res.json({
             success: true,
             message: 'Application approved',
@@ -185,6 +210,18 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
         application.status = 'rejected';
         application.reviewedAt = new Date();
         await application.save();
+
+        // Get reviewer and project for email
+        const reviewer = await Reviewer.findById(application.reviewerId);
+        const project = await Project.findById(application.projectId);
+
+        // 📧 SEND REJECTION EMAIL TO REVIEWER
+        try {
+            await sendApplicationRejectedEmail(reviewer, project);
+            console.log('✓ Application rejected email sent to reviewer');
+        } catch (emailError) {
+            console.error('Email error (non-blocking):', emailError);
+        }
 
         res.json({
             success: true,

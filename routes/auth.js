@@ -3,12 +3,12 @@ import auth from '../config/auth.js';
 import { requireAuth, getUserId } from '../middleware/auth.js';
 import Reviewer from '../models/Reviewer.js';
 import Project from '../models/Project.js';
+import { sendWelcomeEmail } from '../services/emailService.js';
 
 const router = express.Router();
 
 // Better Auth handler - MUST be before other routes
 router.use((req, res, next) => {
-    // Pass all auth-related paths to Better Auth
     if (req.path.startsWith('/')) {
         return auth.handler(req, res, next);
     }
@@ -63,6 +63,7 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
         
         const { username, email, expertise, experience, portfolio, bio } = req.body;
         
+        // Validation
         if (!username || username.length < 3) {
             return res.status(400).json({
                 success: false,
@@ -110,6 +111,14 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
         });
         
         console.log('✓ Reviewer created:', reviewer._id);
+        
+        // 📧 SEND WELCOME EMAIL
+        try {
+            await sendWelcomeEmail({ email, name: username }, 'reviewer');
+            console.log('✓ Welcome email sent to reviewer');
+        } catch (emailError) {
+            console.error('Email error (non-blocking):', emailError);
+        }
         
         res.status(201).json({
             success: true,

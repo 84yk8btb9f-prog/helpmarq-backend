@@ -6,7 +6,7 @@ const requireAuth = async (req, res, next) => {
             headers: req.headers
         });
 
-        if (!session) {
+        if (!session || !session.user) {
             return res.status(401).json({
                 success: false,
                 error: 'Authentication required'
@@ -17,10 +17,10 @@ const requireAuth = async (req, res, next) => {
         req.session = session.session;
         next();
     } catch (error) {
-        console.error('Auth error:', error);
+        console.error('Auth middleware error:', error);
         return res.status(401).json({
             success: false,
-            error: 'Invalid session'
+            error: 'Invalid or expired session'
         });
     }
 };
