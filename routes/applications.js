@@ -1,9 +1,10 @@
-const { requireAuth, getUserId } = require('../middleware/auth');
-const express = require('express');
+import express from 'express';
+import Application from '../models/Application.js';
+import Project from '../models/Project.js';
+import Reviewer from '../models/Reviewer.js';
+import { requireAuth, getUserId } from '../middleware/auth.js';
+
 const router = express.Router();
-const Application = require('../models/Application');
-const Project = require('../models/Project');
-const Reviewer = require('../models/Reviewer');
 
 // Get all applications for a project
 router.get('/project/:projectId', async (req, res) => {
@@ -51,10 +52,9 @@ router.get('/reviewer/:reviewerId', async (req, res) => {
 
 // Create new application
 router.post('/', requireAuth, async (req, res) => {
-try {
+    try {
         const { projectId, reviewerId, reviewerUsername, qualifications, focusAreas } = req.body;
 
-        // Validation
         if (!projectId || !reviewerId || !reviewerUsername || !qualifications || !focusAreas) {
             return res.status(400).json({
                 success: false,
@@ -62,7 +62,6 @@ try {
             });
         }
 
-        // Check if project exists
         const project = await Project.findById(projectId);
         if (!project) {
             return res.status(404).json({
@@ -71,7 +70,6 @@ try {
             });
         }
 
-        // Check if reviewer exists
         const reviewer = await Reviewer.findById(reviewerId);
         if (!reviewer) {
             return res.status(404).json({
@@ -80,10 +78,8 @@ try {
             });
         }
 
-       // Get IP address
         const applicantIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'Unknown';
         
-        // Create application
         const application = await Application.create({
             projectId,
             reviewerId,
@@ -95,21 +91,8 @@ try {
             applicantIp: applicantIp
         });
 
-        // Update project applicants count
         await Project.findByIdAndUpdate(projectId, {
             $inc: { applicantsCount: 1 }
-        });
-// Send email to owner
-        const { sendEmail } = require('../services/emailService');
-        await sendEmail('applicationReceived', project.ownerEmail || 'owner@email.com', {
-            projectTitle: project.title,
-            reviewerName: reviewerUsername,
-            reviewerLevel: reviewer.level,
-            reviewerXP: reviewer.xp,
-            reviewerReviews: reviewer.totalReviews,
-            reviewerRating: reviewer.averageRating.toFixed(1),
-            qualifications,
-            focusAreas
         });
 
         res.status(201).json({
@@ -118,7 +101,6 @@ try {
             data: application
         });
     } catch (error) {
-        // Duplicate application
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
@@ -163,19 +145,7 @@ router.put('/:id/approve', requireAuth, async (req, res) => {
         application.status = 'approved';
         application.reviewedAt = new Date();
         await application.save();
-// Send approval email to reviewer
-        const { sendEmail } = require('../services/emailService');
-        const project = await Project.findById(application.projectId);
-        const reviewer = await Reviewer.findById(application.reviewerId);
-        
-        await sendEmail('applicationApproved', reviewer.email, {
-            projectTitle: project.title,
-            projectType: project.type,
-            projectLink: project.link,
-            ownerName: project.ownerName,
-            xpReward: project.xpReward
-        });
-        // Update project approved count
+
         await Project.findByIdAndUpdate(application.projectId, {
             $inc: { approvedCount: 1 }
         });
@@ -215,14 +185,7 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
         application.status = 'rejected';
         application.reviewedAt = new Date();
         await application.save();
-// Send rejection email to reviewer
-        const { sendEmail } = require('../services/emailService');
-        const project = await Project.findById(application.projectId);
-        const reviewer = await Reviewer.findById(application.reviewerId);
-        
-        await sendEmail('applicationRejected', reviewer.email, {
-            projectTitle: project.title
-        });
+
         res.json({
             success: true,
             message: 'Application rejected',
@@ -236,4 +199,4 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;

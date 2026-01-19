@@ -1,15 +1,30 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const connectDB = require('./config/database');
-const auth = require('./config/auth');
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import connectDB from './config/database.js';
+import rateLimit from 'express-rate-limit';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Connect to MongoDB
-connectDB();
+// CRITICAL: Connect to MongoDB BEFORE initializing Better Auth
+await connectDB();
+
+// Wait for MongoDB connection to be ready
+import mongoose from 'mongoose';
+await new Promise((resolve) => {
+    if (mongoose.connection.readyState === 1) {
+        resolve();
+    } else {
+        mongoose.connection.once('open', resolve);
+    }
+});
+
+console.log('✓ MongoDB connection ready');
+
+// Now import auth (after MongoDB is connected)
+const { default: auth } = await import('./config/auth.js');
 
 // CORS configuration
 const corsOptions = {
@@ -22,6 +37,15 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Rate limiting
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP, please try again later.'
+});
+
+app.use('/api/', limiter);
 
 // Request logging
 if (NODE_ENV === 'development') {
@@ -37,18 +61,19 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         environment: NODE_ENV,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
     });
 });
 
 // Import routes
-const authRouter = require('./routes/auth');
-const projectsRouter = require('./routes/projects');
-const reviewersRouter = require('./routes/reviewers');
-const applicationsRouter = require('./routes/applications');
-const feedbackRouter = require('./routes/feedback');
-const statsRouter = require('./routes/stats');
-const notificationsRouter = require('./routes/notifications');
+import authRouter from './routes/auth.js';
+import projectsRouter from './routes/projects.js';
+import reviewersRouter from './routes/reviewers.js';
+import applicationsRouter from './routes/applications.js';
+import feedbackRouter from './routes/feedback.js';
+import statsRouter from './routes/stats.js';
+import notificationsRouter from './routes/notifications.js';
 
 // Root route
 app.get('/', (req, res) => {
@@ -91,7 +116,6 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
     console.error('Error:', err);
     
-    // Don't leak error details in production
     const message = NODE_ENV === 'production' 
         ? 'Internal server error'
         : err.message;
@@ -107,7 +131,6 @@ app.listen(PORT, () => {
     console.log(`🚀 HelpMarq API running on port ${PORT}`);
     console.log(`📊 Environment: ${NODE_ENV}`);
     console.log(`🔐 Better Auth configured`);
-    console.log(`📧 Email service ready`);
 });
 
 // Graceful shutdown

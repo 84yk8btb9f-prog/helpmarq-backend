@@ -1,11 +1,12 @@
-const express = require('express');
-const router = express.Router();
-const { requireAuth, getUserId } = require('../middleware/auth');
-const Application = require('../models/Application');
-const Feedback = require('../models/Feedback');
-const Project = require('../models/Project');
+import express from 'express';
+import Application from '../models/Application.js';
+import Feedback from '../models/Feedback.js';
+import Project from '../models/Project.js';
+import Reviewer from '../models/Reviewer.js';
+import { requireAuth, getUserId } from '../middleware/auth.js';
 
-// Get notifications for current user
+const router = express.Router();
+
 router.get('/', requireAuth, async (req, res) => {
     try {
         const userId = getUserId(req);
@@ -23,25 +24,21 @@ router.get('/', requireAuth, async (req, res) => {
             }
         };
         
-        // Check if user owns any projects
         const ownedProjects = await Project.find({ ownerId: userId });
         
         if (ownedProjects.length > 0) {
             const projectIds = ownedProjects.map(p => p._id);
             
-            // New applicants (pending status)
             notifications.owner.newApplicants = await Application.countDocuments({
                 projectId: { $in: projectIds },
                 status: 'pending'
             });
             
-            // Unrated feedback
             notifications.owner.unratedFeedback = await Feedback.countDocuments({
                 projectId: { $in: projectIds },
                 isRated: false
             });
             
-            // New feedback (submitted in last 7 days and not rated)
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
             
@@ -52,12 +49,9 @@ router.get('/', requireAuth, async (req, res) => {
             });
         }
         
-        // Check if user is a reviewer
-        const Reviewer = require('../models/Reviewer');
-        const reviewer = await Reviewer.findOne({ clerkUserId: userId });
+        const reviewer = await Reviewer.findOne({ userId: userId });
         
         if (reviewer) {
-            // Recently approved applications (last 7 days)
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
             
@@ -67,14 +61,12 @@ router.get('/', requireAuth, async (req, res) => {
                 reviewedAt: { $gte: sevenDaysAgo }
             });
             
-            // Recently rejected
             notifications.reviewer.applicationRejected = await Application.countDocuments({
                 reviewerId: reviewer._id,
                 status: 'rejected',
                 reviewedAt: { $gte: sevenDaysAgo }
             });
             
-            // Feedback rated in last 7 days
             notifications.reviewer.feedbackRated = await Feedback.countDocuments({
                 reviewerId: reviewer._id,
                 isRated: true,
@@ -95,4 +87,4 @@ router.get('/', requireAuth, async (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;

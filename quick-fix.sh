@@ -1,3 +1,8 @@
+#!/bin/bash
+echo "🔧 Fixing backend..."
+
+# Fix middleware/auth.js
+cat > middleware/auth.js << 'EOF'
 import auth from '../config/auth.js';
 
 const requireAuth = async (req, res, next) => {
@@ -30,3 +35,13 @@ const getUserId = (req) => {
 };
 
 export { requireAuth, getUserId };
+EOF
+
+# Fix routes/auth.js - REMOVE router.all line
+sed -i.bak '/router\.all/d' routes/auth.js
+echo 'router.use(auth.handler);' >> routes/auth.js
+echo '' >> routes/auth.js
+echo 'export default router;' >> routes/auth.js
+
+rm -rf node_modules/.cache
+echo "✅ Fixed!"

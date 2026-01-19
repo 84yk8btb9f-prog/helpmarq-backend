@@ -1,10 +1,10 @@
-const { Resend } = require('resend');
+import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = 'HelpMarq <onboarding@resend.dev>'; // Use this for testing
+const FROM_EMAIL = 'HelpMarq <onboarding@resend.dev>';
 
-// Email Templates
+
 const emailTemplates = {
     // === ONBOARDING ===
     
@@ -418,4 +418,4 @@ async function sendEmail(templateName, to, data) {
     }
 }
 
-module.exports = { sendEmail };
+export { sendEmail };

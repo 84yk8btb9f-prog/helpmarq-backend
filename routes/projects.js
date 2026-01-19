@@ -1,7 +1,8 @@
-const express = require('express');
+import express from 'express';
+import Project from '../models/Project.js';
+import { requireAuth, getUserId } from '../middleware/auth.js';
+
 const router = express.Router();
-const Project = require('../models/Project');
-const { requireAuth, getUserId } = require('../middleware/auth');
 
 router.get('/', async (req, res) => {
     try {
@@ -12,7 +13,6 @@ router.get('/', async (req, res) => {
         if (minXP) query.xpReward = { $gte: parseInt(minXP) };
         if (owner) query.ownerName = new RegExp(owner, 'i');
 
-        // Sorting
         let sortOption = {};
         switch (sort) {
             case 'newest':
@@ -34,7 +34,6 @@ router.get('/', async (req, res) => {
                 sortOption = { createdAt: -1 };
         }
 
-        // Pagination
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
         const skip = (pageNum - 1) * limitNum;
@@ -88,17 +87,15 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', requireAuth, async (req, res) => {
-try {
-         // Send welcome email to first-time owners
-        const { sendEmail } = require('../services/emailService');
-        const ownerProjectCount = await Project.countDocuments({ ownerId: project.ownerId });
+    try {
+        const userId = getUserId(req);
         
-        if (ownerProjectCount === 1) {
-            // First project - send welcome email
-            await sendEmail('welcomeOwner', project.ownerEmail || req.body.ownerEmail, {
-                name: project.ownerName
-            });
-        }
+        const projectData = {
+            ...req.body,
+            ownerId: userId
+        };
+
+        const project = await Project.create(projectData);
 
         res.status(201).json({
             success: true,
@@ -122,7 +119,7 @@ try {
 });
 
 router.delete('/:id', requireAuth, async (req, res) => {
-try {
+    try {
         const project = await Project.findByIdAndDelete(req.params.id);
 
         if (!project) {
@@ -145,4 +142,4 @@ try {
     }
 });
 
-module.exports = router;
+export default router;

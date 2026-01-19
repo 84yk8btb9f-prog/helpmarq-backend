@@ -1,13 +1,18 @@
-const express = require('express');
-const router = express.Router();
-const auth = require('../config/auth');
-const { requireAuth, getUserId } = require('../middleware/auth');
-const Reviewer = require('../models/Reviewer');
-const Project = require('../models/Project');
+import express from 'express';
+import auth from '../config/auth.js';
+import { requireAuth, getUserId } from '../middleware/auth.js';
+import Reviewer from '../models/Reviewer.js';
+import Project from '../models/Project.js';
 
-// Mount Better Auth API routes
-router.all('/*', (req, res, next) => {
-    return auth.handler(req, res);
+const router = express.Router();
+
+// Better Auth handler - MUST be before other routes
+router.use((req, res, next) => {
+    // Pass all auth-related paths to Better Auth
+    if (req.path.startsWith('/')) {
+        return auth.handler(req, res, next);
+    }
+    next();
 });
 
 // Get current user info
@@ -15,7 +20,6 @@ router.get('/me', requireAuth, async (req, res) => {
     try {
         const userId = getUserId(req);
         
-        // Check if reviewer
         const reviewer = await Reviewer.findOne({ userId });
         if (reviewer) {
             return res.json({
@@ -25,7 +29,6 @@ router.get('/me', requireAuth, async (req, res) => {
             });
         }
         
-        // Check if owner
         const projects = await Project.find({ ownerId: userId });
         if (projects.length > 0) {
             return res.json({
@@ -35,7 +38,6 @@ router.get('/me', requireAuth, async (req, res) => {
             });
         }
         
-        // New user
         res.json({
             success: true,
             role: null,
@@ -50,7 +52,7 @@ router.get('/me', requireAuth, async (req, res) => {
     }
 });
 
-// Create reviewer profile (after signup)
+// Create reviewer profile
 router.post('/create-reviewer', requireAuth, async (req, res) => {
     try {
         const userId = getUserId(req);
@@ -61,7 +63,6 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
         
         const { username, email, expertise, experience, portfolio, bio } = req.body;
         
-        // Validation
         if (!username || username.length < 3) {
             return res.status(400).json({
                 success: false,
@@ -90,7 +91,6 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
             });
         }
         
-        // Check if reviewer already exists
         const existing = await Reviewer.findOne({ userId });
         if (existing) {
             return res.status(400).json({
@@ -99,9 +99,8 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
             });
         }
         
-        // Create reviewer
         const reviewer = await Reviewer.create({
-            userId,  // Changed from clerkUserId
+            userId,
             username,
             email,
             expertise,
@@ -111,12 +110,6 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
         });
         
         console.log('✓ Reviewer created:', reviewer._id);
-        
-        // Send welcome email
-        const { sendEmail } = require('../services/emailService');
-        await sendEmail('welcomeReviewer', email, {
-            name: username
-        });
         
         res.status(201).json({
             success: true,
@@ -149,4 +142,4 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;

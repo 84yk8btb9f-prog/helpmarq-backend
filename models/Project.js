@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const projectSchema = new mongoose.Schema({
     title: {
@@ -32,21 +32,21 @@ const projectSchema = new mongoose.Schema({
         type: String,
         default: null
     },
-   ownerId: {
-    type: String,
-    required: [true, 'Owner ID is required']
-},
-ownerName: {
-    type: String,
-    required: [true, 'Owner name is required'],
-    trim: true
-},
-ownerEmail: {
-    type: String,
-    required: [true, 'Owner email is required'],
-    trim: true,
-    lowercase: true
-},
+    ownerId: {
+        type: String,
+        required: [true, 'Owner ID is required']
+    },
+    ownerName: {
+        type: String,
+        required: [true, 'Owner name is required'],
+        trim: true
+    },
+    ownerEmail: {
+        type: String,
+        required: [true, 'Owner email is required'],
+        trim: true,
+        lowercase: true
+    },
     xpReward: {
         type: Number,
         required: [true, 'XP reward is required'],
@@ -84,4 +84,4 @@ ownerEmail: {
     timestamps: true
 });
 
-module.exports = mongoose.model('Project', projectSchema);
+export default mongoose.models.Project || mongoose.model('Project', projectSchema);

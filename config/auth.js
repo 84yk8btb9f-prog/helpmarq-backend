@@ -1,13 +1,12 @@
-const { betterAuth } = require("better-auth");
+import { betterAuth } from "better-auth";
+import { mongodbAdapter } from "better-auth/adapters/mongodb";
+import mongoose from "mongoose";
 
 const auth = betterAuth({
-    database: {
-        provider: "mongodb",
-        url: process.env.MONGODB_URI
-    },
+    database: mongodbAdapter(mongoose.connection),
     emailAndPassword: {
         enabled: true,
-        requireEmailVerification: false // Enable later in production
+        requireEmailVerification: false
     },
     session: {
         expiresIn: 60 * 60 * 24 * 7, // 7 days
@@ -20,7 +19,11 @@ const auth = betterAuth({
                 required: false
             }
         }
-    }
+    },
+    trustedOrigins: [
+        "http://localhost:8080",
+        "https://helpmarq.vercel.app"
+    ]
 });
 
-module.exports = auth;
+export default auth;

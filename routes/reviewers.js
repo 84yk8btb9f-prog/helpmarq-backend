@@ -1,12 +1,12 @@
-const express = require('express');
+import express from 'express';
+import Reviewer from '../models/Reviewer.js';
+
 const router = express.Router();
-const Reviewer = require('../models/Reviewer');
 
 router.get('/', async (req, res) => {
     try {
         const { page = 1, limit = 10, sort = 'xp' } = req.query;
 
-        // Sorting
         let sortOption = {};
         switch (sort) {
             case 'xp':
@@ -28,7 +28,6 @@ router.get('/', async (req, res) => {
                 sortOption = { xp: -1 };
         }
 
-        // Pagination
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
         const skip = (pageNum - 1) * limitNum;
@@ -113,4 +112,4 @@ router.post('/', async (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;

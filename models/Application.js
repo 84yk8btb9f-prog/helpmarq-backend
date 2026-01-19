@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const applicationSchema = new mongoose.Schema({
     projectId: {
@@ -56,7 +56,6 @@ const applicationSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Prevent duplicate applications (same reviewer + project)
 applicationSchema.index({ projectId: 1, reviewerId: 1 }, { unique: true });
 
-module.exports = mongoose.model('Application', applicationSchema);
+export default mongoose.models.Application || mongoose.model('Application', applicationSchema);

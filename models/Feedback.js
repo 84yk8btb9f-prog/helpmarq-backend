@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const feedbackSchema = new mongoose.Schema({
     projectId: {
@@ -53,7 +53,6 @@ const feedbackSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Prevent duplicate feedback (same reviewer can only review project once)
 feedbackSchema.index({ projectId: 1, reviewerId: 1 }, { unique: true });
 
-module.exports = mongoose.model('Feedback', feedbackSchema);
+export default mongoose.models.Feedback || mongoose.model('Feedback', feedbackSchema);

@@ -1,10 +1,11 @@
-const { requireAuth, getUserId } = require('../middleware/auth');
-const express = require('express');
+import express from 'express';
+import Feedback from '../models/Feedback.js';
+import Application from '../models/Application.js';
+import Project from '../models/Project.js';
+import Reviewer from '../models/Reviewer.js';
+import { requireAuth, getUserId } from '../middleware/auth.js';
+
 const router = express.Router();
-const Feedback = require('../models/Feedback');
-const Application = require('../models/Application');
-const Project = require('../models/Project');
-const Reviewer = require('../models/Reviewer');
 
 // Get all feedback for a project
 router.get('/project/:projectId', async (req, res) => {
@@ -48,12 +49,11 @@ router.get('/reviewer/:reviewerId', async (req, res) => {
     }
 });
 
-// Submit feedback (approved reviewers only)
+// Submit feedback
 router.post('/', requireAuth, async (req, res) => {
     try {
         const { projectId, reviewerId, reviewerUsername, feedbackText, projectRating } = req.body;
 
-        // Validation
         if (!projectId || !reviewerId || !reviewerUsername || !feedbackText) {
             return res.status(400).json({
                 success: false,
@@ -61,7 +61,6 @@ router.post('/', requireAuth, async (req, res) => {
             });
         }
 
-        // Check if reviewer is approved
         const application = await Application.findOne({
             projectId,
             reviewerId,
@@ -75,7 +74,6 @@ router.post('/', requireAuth, async (req, res) => {
             });
         }
 
-        // Check if already submitted
         const existingFeedback = await Feedback.findOne({ projectId, reviewerId });
         if (existingFeedback) {
             return res.status(400).json({
@@ -84,7 +82,6 @@ router.post('/', requireAuth, async (req, res) => {
             });
         }
 
-        // Create feedback
         const feedback = await Feedback.create({
             projectId,
             reviewerId,
@@ -93,27 +90,16 @@ router.post('/', requireAuth, async (req, res) => {
             projectRating: projectRating || null
         });
 
-        // Update project reviews count
         await Project.findByIdAndUpdate(projectId, {
             $inc: { reviewsCount: 1 }
         });
-// Send email to owner
-        const { sendEmail } = require('../services/emailService');
-        const project = await Project.findById(projectId);
-        
-        await sendEmail('reviewComplete', project.ownerEmail || 'owner@email.com', {
-            projectTitle: project.title,
-            reviewerName: reviewerUsername,
-            feedbackPreview: feedbackText.substring(0, 150),
-            projectRating
-        });
+
         res.status(201).json({
             success: true,
             message: 'Feedback submitted successfully',
             data: feedback
         });
     } catch (error) {
-        // Duplicate feedback
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
@@ -136,7 +122,7 @@ router.post('/', requireAuth, async (req, res) => {
     }
 });
 
-// Rate feedback (owner rates reviewer's work)
+// Rate feedback
 router.put('/:id/rate', requireAuth, async (req, res) => {
     try {
         const { rating } = req.body;
@@ -164,28 +150,24 @@ router.put('/:id/rate', requireAuth, async (req, res) => {
             });
         }
 
-        // Calculate XP based on rating
-        let xpAwarded = 100; // Base XP
-        if (rating === 5) xpAwarded += 50;      // Perfect: 150 XP
-        else if (rating === 4) xpAwarded += 25; // Good: 125 XP
-        else if (rating === 3) xpAwarded += 0;  // Average: 100 XP
-        else if (rating === 2) xpAwarded -= 25; // Below average: 75 XP
-        else if (rating === 1) xpAwarded -= 50; // Poor: 50 XP
+        let xpAwarded = 100;
+        if (rating === 5) xpAwarded += 50;
+        else if (rating === 4) xpAwarded += 25;
+        else if (rating === 3) xpAwarded += 0;
+        else if (rating === 2) xpAwarded -= 25;
+        else if (rating === 1) xpAwarded -= 50;
 
-        // Update feedback
         feedback.ownerRating = rating;
         feedback.xpAwarded = xpAwarded;
         feedback.isRated = true;
         feedback.ratedAt = new Date();
         await feedback.save();
 
-        // Update reviewer stats
         const reviewer = await Reviewer.findById(feedback.reviewerId);
         if (reviewer) {
             reviewer.xp += xpAwarded;
             reviewer.totalReviews += 1;
 
-            // Recalculate average rating
             const allFeedback = await Feedback.find({
                 reviewerId: reviewer._id,
                 isRated: true
@@ -194,27 +176,8 @@ router.put('/:id/rate', requireAuth, async (req, res) => {
             const totalRating = allFeedback.reduce((sum, f) => sum + f.ownerRating, 0);
             reviewer.averageRating = totalRating / allFeedback.length;
 
-            // Update level
             reviewer.updateLevel();
-
             await reviewer.save();
-            
-            // Check if leveled up
-            const oldLevel = Math.floor((reviewer.xp - xpAwarded) / 500) + 1;
-            const leveledUp = reviewer.level > oldLevel;
-            
-            // Send rating email to reviewer
-            const { sendEmail } = require('../services/emailService');
-            await sendEmail('ratingReceived', reviewer.email, {
-                projectTitle: feedback.projectId.title || 'project',
-                rating: rating,
-                xpAwarded: xpAwarded,
-                newLevel: reviewer.level,
-                totalXP: reviewer.xp,
-                totalReviews: reviewer.totalReviews,
-                avgRating: reviewer.averageRating.toFixed(1),
-                leveledUp
-            });
         }
 
         res.json({
@@ -235,4 +198,4 @@ router.put('/:id/rate', requireAuth, async (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;

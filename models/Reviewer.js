@@ -1,7 +1,7 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const reviewerSchema = new mongoose.Schema({
-    userId: {  // Changed from clerkUserId
+    userId: {
         type: String,
         required: true,
         unique: true
@@ -81,4 +81,4 @@ reviewerSchema.methods.updateLevel = function() {
     else this.level = 1;
 };
 
-module.exports = mongoose.model('Reviewer', reviewerSchema);
+export default mongoose.models.Reviewer || mongoose.model('Reviewer', reviewerSchema);
