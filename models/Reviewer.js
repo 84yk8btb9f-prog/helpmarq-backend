@@ -4,8 +4,7 @@ const reviewerSchema = new mongoose.Schema({
     userId: {
         type: String,
         required: true,
-        unique: true,
-        index: true  // ← Keep this one
+        unique: true
     },
     username: {
         type: String,
@@ -50,8 +49,7 @@ const reviewerSchema = new mongoose.Schema({
     xp: {
         type: Number,
         default: 0,
-        min: 0,
-        index: true  // ← Add index here for sorting
+        min: 0
     },
     totalReviews: {
         type: Number,
@@ -68,6 +66,9 @@ const reviewerSchema = new mongoose.Schema({
     timestamps: true
 });
 
+// Add compound index for sorting
+reviewerSchema.index({ xp: -1, level: -1 });
+
 reviewerSchema.methods.updateLevel = function() {
     if (this.xp >= 2500) this.level = 6;
     else if (this.xp >= 2000) this.level = 5;
@@ -76,9 +77,5 @@ reviewerSchema.methods.updateLevel = function() {
     else if (this.xp >= 500) this.level = 2;
     else this.level = 1;
 };
-
-// REMOVE THESE DUPLICATE INDEXES:
-// reviewerSchema.index({ userId: 1 });
-// reviewerSchema.index({ xp: -1 });
 
 export default mongoose.model('Reviewer', reviewerSchema);

@@ -10,7 +10,7 @@ const router = express.Router();
 router.get('/me', requireAuth, async (req, res) => {
     try {
         const userId = getUserId(req);
-        
+
         // Check if reviewer exists
         const reviewer = await Reviewer.findOne({ userId });
         if (reviewer) {
@@ -20,7 +20,7 @@ router.get('/me', requireAuth, async (req, res) => {
                 data: reviewer
             });
         }
-        
+
         // Check if user has projects (is owner)
         const projects = await Project.find({ ownerId: userId });
         if (projects.length > 0) {
@@ -30,14 +30,14 @@ router.get('/me', requireAuth, async (req, res) => {
                 data: { userId, projectCount: projects.length }
             });
         }
-        
+
         // New user, no role yet
         res.json({
             success: true,
             role: null,
             data: { userId }
         });
-        
+
     } catch (error) {
         console.error('Get user error:', error);
         res.status(500).json({
@@ -52,7 +52,7 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
     try {
         const userId = getUserId(req);
         const { username, email, expertise, experience, portfolio, bio } = req.body;
-        
+
         // Validation
         if (!username || username.length < 3) {
             return res.status(400).json({
@@ -60,28 +60,28 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
                 error: 'Username must be at least 3 characters'
             });
         }
-        
+
         if (!expertise) {
             return res.status(400).json({
                 success: false,
                 error: 'Expertise is required'
             });
         }
-        
+
         if (!experience) {
             return res.status(400).json({
                 success: false,
                 error: 'Experience level is required'
             });
         }
-        
+
         if (!bio || bio.length < 50) {
             return res.status(400).json({
                 success: false,
                 error: 'Bio must be at least 50 characters'
             });
         }
-        
+
         // Check if reviewer already exists
         const existing = await Reviewer.findOne({ userId });
         if (existing) {
@@ -90,7 +90,7 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
                 error: 'Reviewer profile already exists'
             });
         }
-        
+
         // Create reviewer
         const reviewer = await Reviewer.create({
             userId,
@@ -101,23 +101,23 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
             portfolio: portfolio || '',
             bio
         });
-        
-        // Send welcome email
+
+        // Send welcome email (non-blocking)
         try {
             await sendWelcomeEmail({ email, name: username }, 'reviewer');
         } catch (emailError) {
             console.error('Email error (non-blocking):', emailError);
         }
-        
+
         res.status(201).json({
             success: true,
             message: 'Reviewer profile created',
             data: reviewer
         });
-        
+
     } catch (error) {
         console.error('Create reviewer error:', error);
-        
+
         if (error.name === 'ValidationError') {
             const errors = Object.values(error.errors).map(err => err.message);
             return res.status(400).json({
@@ -125,14 +125,14 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
                 error: errors[0]
             });
         }
-        
+
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
                 error: 'Username already taken'
             });
         }
-        
+
         res.status(500).json({
             success: false,
             error: error.message

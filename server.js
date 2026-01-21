@@ -38,7 +38,7 @@ app.use(express.json());
 
 // Rate limiting
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
+    windowMs: 15 * 60 * 1000,
     max: 100,
     message: 'Too many requests, please try again later.'
 });
@@ -73,25 +73,30 @@ app.get('/', (req, res) => {
     });
 });
 
-// Better Auth - Mount BEFORE other routes
-app.all('/api/auth/*', async (req, res) => {
-    // Construct the full URL for Better Auth
-    const protocol = req.protocol || 'http';
-    const host = req.get('host') || 'localhost:3000';
-    const fullUrl = `${protocol}://${host}${req.originalUrl}`;
-    
-    // Create a new request object with the full URL
-    const authRequest = {
-        ...req,
-        url: fullUrl,
-        headers: {
-            ...req.headers,
-            'x-forwarded-proto': protocol,
-            'x-forwarded-host': host
-        }
-    };
-    
-    return auth.handler(authRequest, res);
+// Better Auth - FIXED MOUNTING
+app.use('/api/auth', async (req, res, next) => {
+    try {
+        // Construct full URL for Better Auth
+        const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
+        const host = req.get('x-forwarded-host') || req.get('host') || 'localhost:3000';
+        const originalUrl = req.originalUrl || req.url;
+        
+        // Create proper request object with full URL
+        const betterAuthReq = {
+            ...req,
+            url: `${protocol}://${host}${originalUrl}`,
+            headers: {
+                ...req.headers,
+                'x-forwarded-proto': protocol,
+                'x-forwarded-host': host
+            }
+        };
+        
+        return auth.handler(betterAuthReq, res);
+    } catch (error) {
+        console.error('Better Auth error:', error);
+        next(error);
+    }
 });
 
 // Import routes
@@ -104,7 +109,7 @@ import statsRouter from './routes/stats.js';
 import notificationsRouter from './routes/notifications.js';
 
 // Mount API routes
-app.use('/api/auth', authRouter);
+app.use('/api/user', authRouter);
 app.use('/api/projects', projectsRouter);
 app.use('/api/reviewers', reviewersRouter);
 app.use('/api/applications', applicationsRouter);

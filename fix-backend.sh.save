@@ -1,2 +1,0 @@
-chmod +x fix-backend.sh
-./fix-backend.sh
