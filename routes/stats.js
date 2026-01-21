@@ -18,8 +18,8 @@ router.get('/', async (req, res) => {
         
         const reviewersWithRatings = await Reviewer.find({ totalReviews: { $gt: 0 } });
         const avgPlatformRating = reviewersWithRatings.length > 0
-            ? reviewersWithRatings.reduce((sum, r) => sum + r.averageRating, 0) / reviewersWithRatings.length
-            : 0;
+            ? (reviewersWithRatings.reduce((sum, r) => sum + r.averageRating, 0) / reviewersWithRatings.length).toFixed(2)
+            : '0.00';
         
         const allReviewers = await Reviewer.find();
         const totalXPAwarded = allReviewers.reduce((sum, r) => sum + r.xp, 0);
@@ -45,12 +45,12 @@ router.get('/', async (req, res) => {
                     reviewers: totalReviewers,
                     applications: totalApplications,
                     feedback: totalFeedback,
-                    activeProjects: activeProjects,
-                    approvedApplications: approvedApplications
+                    activeProjects,
+                    approvedApplications
                 },
                 quality: {
-                    avgPlatformRating: avgPlatformRating.toFixed(2),
-                    totalXPAwarded: totalXPAwarded,
+                    avgPlatformRating,
+                    totalXPAwarded,
                     topReviewer: topReviewer ? {
                         username: topReviewer.username,
                         xp: topReviewer.xp,
@@ -65,12 +65,13 @@ router.get('/', async (req, res) => {
                     }
                 },
                 distribution: {
-                    projectTypes: projectTypes
+                    projectTypes
                 }
             }
         });
         
     } catch (error) {
+        console.error('Get stats error:', error);
         res.status(500).json({
             success: false,
             error: error.message

@@ -24,6 +24,7 @@ router.get('/', requireAuth, async (req, res) => {
             }
         };
         
+        // Check for owned projects
         const ownedProjects = await Project.find({ ownerId: userId });
         
         if (ownedProjects.length > 0) {
@@ -49,7 +50,8 @@ router.get('/', requireAuth, async (req, res) => {
             });
         }
         
-        const reviewer = await Reviewer.findOne({ userId: userId });
+        // Check for reviewer profile
+        const reviewer = await Reviewer.findOne({ userId });
         
         if (reviewer) {
             const sevenDaysAgo = new Date();
@@ -80,6 +82,7 @@ router.get('/', requireAuth, async (req, res) => {
         });
         
     } catch (error) {
+        console.error('Get notifications error:', error);
         res.status(500).json({
             success: false,
             error: error.message

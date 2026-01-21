@@ -5,14 +5,13 @@ import Reviewer from '../models/Reviewer.js';
 import { requireAuth, getUserId } from '../middleware/auth.js';
 import { 
     sendApplicationReceivedEmail, 
-    sendApplicationApprovedEmail, 
-    sendApplicationRejectedEmail 
+    sendApplicationApprovedEmail 
 } from '../services/emailService.js';
 
 const router = express.Router();
 
-// Get all applications for a project
-router.get('/project/:projectId', async (req, res) => {
+// Get applications for a project
+router.get('/project/:projectId', requireAuth, async (req, res) => {
     try {
         const applications = await Application.find({ 
             projectId: req.params.projectId 
@@ -26,6 +25,7 @@ router.get('/project/:projectId', async (req, res) => {
             data: applications
         });
     } catch (error) {
+        console.error('Get applications error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -33,13 +33,13 @@ router.get('/project/:projectId', async (req, res) => {
     }
 });
 
-// Get all applications by a reviewer
-router.get('/reviewer/:reviewerId', async (req, res) => {
+// Get applications by reviewer
+router.get('/reviewer/:reviewerId', requireAuth, async (req, res) => {
     try {
         const applications = await Application.find({ 
             reviewerId: req.params.reviewerId 
         })
-        .populate('projectId', 'title type ownerName xpReward')
+        .populate('projectId', 'title type ownerName xpReward deadline')
         .sort({ appliedAt: -1 });
 
         res.json({
@@ -48,6 +48,7 @@ router.get('/reviewer/:reviewerId', async (req, res) => {
             data: applications
         });
     } catch (error) {
+        console.error('Get reviewer applications error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -55,11 +56,12 @@ router.get('/reviewer/:reviewerId', async (req, res) => {
     }
 });
 
-// Create new application
+// Create application
 router.post('/', requireAuth, async (req, res) => {
     try {
         const { projectId, reviewerId, reviewerUsername, qualifications, focusAreas } = req.body;
 
+        // Validation
         if (!projectId || !reviewerId || !reviewerUsername || !qualifications || !focusAreas) {
             return res.status(400).json({
                 success: false,
@@ -67,6 +69,7 @@ router.post('/', requireAuth, async (req, res) => {
             });
         }
 
+        // Verify project exists
         const project = await Project.findById(projectId);
         if (!project) {
             return res.status(404).json({
@@ -75,6 +78,7 @@ router.post('/', requireAuth, async (req, res) => {
             });
         }
 
+        // Verify reviewer exists
         const reviewer = await Reviewer.findById(reviewerId);
         if (!reviewer) {
             return res.status(404).json({
@@ -93,17 +97,17 @@ router.post('/', requireAuth, async (req, res) => {
             focusAreas,
             ndaAccepted: true,
             ndaAcceptedAt: new Date(),
-            applicantIp: applicantIp
+            applicantIp
         });
 
+        // Update project applicant count
         await Project.findByIdAndUpdate(projectId, {
             $inc: { applicantsCount: 1 }
         });
 
-        // 📧 SEND APPLICATION RECEIVED EMAIL TO OWNER
+        // Send email to project owner
         try {
             await sendApplicationReceivedEmail(application, project, reviewer);
-            console.log('✓ Application received email sent to owner');
         } catch (emailError) {
             console.error('Email error (non-blocking):', emailError);
         }
@@ -114,6 +118,8 @@ router.post('/', requireAuth, async (req, res) => {
             data: application
         });
     } catch (error) {
+        console.error('Create application error:', error);
+        
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
@@ -159,6 +165,7 @@ router.put('/:id/approve', requireAuth, async (req, res) => {
         application.reviewedAt = new Date();
         await application.save();
 
+        // Update project approved count
         await Project.findByIdAndUpdate(application.projectId, {
             $inc: { approvedCount: 1 }
         });
@@ -167,10 +174,9 @@ router.put('/:id/approve', requireAuth, async (req, res) => {
         const reviewer = await Reviewer.findById(application.reviewerId);
         const project = await Project.findById(application.projectId);
 
-        // 📧 SEND APPROVAL EMAIL TO REVIEWER
+        // Send approval email
         try {
             await sendApplicationApprovedEmail(reviewer, project);
-            console.log('✓ Application approved email sent to reviewer');
         } catch (emailError) {
             console.error('Email error (non-blocking):', emailError);
         }
@@ -181,6 +187,7 @@ router.put('/:id/approve', requireAuth, async (req, res) => {
             data: application
         });
     } catch (error) {
+        console.error('Approve application error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -211,24 +218,13 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
         application.reviewedAt = new Date();
         await application.save();
 
-        // Get reviewer and project for email
-        const reviewer = await Reviewer.findById(application.reviewerId);
-        const project = await Project.findById(application.projectId);
-
-        // 📧 SEND REJECTION EMAIL TO REVIEWER
-        try {
-            await sendApplicationRejectedEmail(reviewer, project);
-            console.log('✓ Application rejected email sent to reviewer');
-        } catch (emailError) {
-            console.error('Email error (non-blocking):', emailError);
-        }
-
         res.json({
             success: true,
             message: 'Application rejected',
             data: application
         });
     } catch (error) {
+        console.error('Reject application error:', error);
         res.status(500).json({
             success: false,
             error: error.message

@@ -4,36 +4,31 @@ const reviewerSchema = new mongoose.Schema({
     userId: {
         type: String,
         required: true,
-        unique: true
+        unique: true,
+        index: true  // ← Keep this one
     },
     username: {
         type: String,
-        required: [true, 'Display name is required'],
+        required: true,
         trim: true,
-        minlength: [3, 'Display name must be at least 3 characters'],
-        maxlength: [50, 'Display name cannot exceed 50 characters']
+        minlength: 3,
+        maxlength: 50
     },
     email: {
         type: String,
-        required: [true, 'Email is required'],
+        required: true,
         trim: true,
         lowercase: true
     },
     expertise: {
         type: String,
-        required: [true, 'Expertise is required'],
-        enum: {
-            values: ['UI/UX Design', 'Web Development', 'Mobile Development', 'Graphic Design', 'Product Management', 'Marketing', 'Copywriting', 'Business Strategy', 'Data Analysis', 'Other'],
-            message: '{VALUE} is not a valid expertise'
-        }
+        required: true,
+        enum: ['UI/UX Design', 'Web Development', 'Mobile Development', 'Graphic Design', 'Product Management', 'Marketing', 'Copywriting', 'Business Strategy', 'Data Analysis', 'Other']
     },
     experience: {
         type: String,
-        required: [true, 'Experience level is required'],
-        enum: {
-            values: ['0-1', '1-3', '3-5', '5-10', '10+'],
-            message: '{VALUE} is not a valid experience level'
-        }
+        required: true,
+        enum: ['0-1', '1-3', '3-5', '5-10', '10+']
     },
     portfolio: {
         type: String,
@@ -42,9 +37,9 @@ const reviewerSchema = new mongoose.Schema({
     },
     bio: {
         type: String,
-        required: [true, 'Bio is required'],
-        minlength: [50, 'Bio must be at least 50 characters'],
-        maxlength: [500, 'Bio cannot exceed 500 characters']
+        required: true,
+        minlength: 50,
+        maxlength: 500
     },
     level: {
         type: Number,
@@ -55,7 +50,8 @@ const reviewerSchema = new mongoose.Schema({
     xp: {
         type: Number,
         default: 0,
-        min: 0
+        min: 0,
+        index: true  // ← Add index here for sorting
     },
     totalReviews: {
         type: Number,
@@ -81,4 +77,8 @@ reviewerSchema.methods.updateLevel = function() {
     else this.level = 1;
 };
 
-export default mongoose.models.Reviewer || mongoose.model('Reviewer', reviewerSchema);
+// REMOVE THESE DUPLICATE INDEXES:
+// reviewerSchema.index({ userId: 1 });
+// reviewerSchema.index({ xp: -1 });
+
+export default mongoose.model('Reviewer', reviewerSchema);

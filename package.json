@@ -1,6 +1,6 @@
 {
-  "name": "backend",
-  "version": "1.0.0",
+  "name": "helpmarq-backend",
+  "version": "2.0.0",
   "type": "module",
   "main": "server.js",
   "scripts": {
@@ -14,10 +14,12 @@
     "express": "^5.2.1",
     "express-rate-limit": "^7.1.5",
     "mongoose": "^9.1.2",
-    "node-cron": "^3.0.3",
     "resend": "^4.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

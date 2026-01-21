@@ -3,29 +3,26 @@ import mongoose from 'mongoose';
 const projectSchema = new mongoose.Schema({
     title: {
         type: String,
-        required: [true, 'Title is required'],
+        required: true,
         trim: true,
-        minlength: [5, 'Title must be at least 5 characters'],
-        maxlength: [100, 'Title cannot exceed 100 characters']
+        minlength: 5,
+        maxlength: 100
     },
     description: {
         type: String,
-        required: [true, 'Description is required'],
+        required: true,
         trim: true,
-        minlength: [20, 'Description must be at least 20 characters'],
-        maxlength: [500, 'Description cannot exceed 500 characters']
+        minlength: 20,
+        maxlength: 500
     },
     type: {
         type: String,
-        required: [true, 'Project type is required'],
-        enum: {
-            values: ['website', 'app', 'design', 'pitch', 'business', 'other'],
-            message: '{VALUE} is not a valid project type'
-        }
+        required: true,
+        enum: ['website', 'app', 'design', 'pitch', 'business', 'other']
     },
     link: {
         type: String,
-        required: [true, 'Project link is required'],
+        required: true,
         trim: true
     },
     imageUrl: {
@@ -34,34 +31,30 @@ const projectSchema = new mongoose.Schema({
     },
     ownerId: {
         type: String,
-        required: [true, 'Owner ID is required']
+        required: true,
+        index: true  // ← Keep this one
     },
     ownerName: {
         type: String,
-        required: [true, 'Owner name is required'],
+        required: true,
         trim: true
     },
     ownerEmail: {
         type: String,
-        required: [true, 'Owner email is required'],
+        required: true,
         trim: true,
         lowercase: true
     },
     xpReward: {
         type: Number,
-        required: [true, 'XP reward is required'],
-        min: [50, 'XP reward must be at least 50'],
-        max: [500, 'XP reward cannot exceed 500']
+        required: true,
+        min: 50,
+        max: 500,
+        index: true  // ← Add for sorting
     },
     deadline: {
         type: Date,
-        required: [true, 'Deadline is required'],
-        validate: {
-            validator: function(value) {
-                return value > new Date();
-            },
-            message: 'Deadline must be in the future'
-        }
+        required: true
     },
     status: {
         type: String,
@@ -84,4 +77,9 @@ const projectSchema = new mongoose.Schema({
     timestamps: true
 });
 
-export default mongoose.models.Project || mongoose.model('Project', projectSchema);
+// REMOVE THESE DUPLICATE INDEXES:
+// projectSchema.index({ ownerId: 1 });
+// projectSchema.index({ createdAt: -1 });
+// projectSchema.index({ xpReward: -1 });
+
+export default mongoose.model('Project', projectSchema);

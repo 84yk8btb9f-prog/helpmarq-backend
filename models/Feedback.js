@@ -9,7 +9,8 @@ const feedbackSchema = new mongoose.Schema({
     reviewerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Reviewer',
-        required: true
+        required: true,
+        index: true  // ← Add for querying
     },
     reviewerUsername: {
         type: String,
@@ -17,9 +18,9 @@ const feedbackSchema = new mongoose.Schema({
     },
     feedbackText: {
         type: String,
-        required: [true, 'Feedback text is required'],
-        minlength: [50, 'Feedback must be at least 50 characters'],
-        maxlength: [2000, 'Feedback cannot exceed 2000 characters']
+        required: true,
+        minlength: 50,
+        maxlength: 2000
     },
     projectRating: {
         type: Number,
@@ -54,5 +55,6 @@ const feedbackSchema = new mongoose.Schema({
 });
 
 feedbackSchema.index({ projectId: 1, reviewerId: 1 }, { unique: true });
+// REMOVE: feedbackSchema.index({ reviewerId: 1 });
 
-export default mongoose.models.Feedback || mongoose.model('Feedback', feedbackSchema);
+export default mongoose.model('Feedback', feedbackSchema);

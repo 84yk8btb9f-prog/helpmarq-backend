@@ -7,48 +7,37 @@ const auth = betterAuth({
     
     emailAndPassword: {
         enabled: true,
-        requireEmailVerification: false, // Set to true once email is configured
-        sendResetPassword: async ({ user, url }) => {
-            // TODO: Add email sending logic here
-            console.log(`Reset password URL for ${user.email}: ${url}`);
-        }
+        requireEmailVerification: false
     },
     
     session: {
         expiresIn: 60 * 60 * 24 * 7, // 7 days
-        updateAge: 60 * 60 * 24, // Update every 24 hours
-        cookieCache: {
-            enabled: true,
-            maxAge: 5 * 60 // 5 minutes
-        }
+        updateAge: 60 * 60 * 24 // 1 day
     },
     
     user: {
         additionalFields: {
             role: {
                 type: "string",
-                required: false,
-                defaultValue: null
-            },
-            name: {
-                type: "string",
                 required: false
             }
         }
     },
     
+    baseURL: process.env.NODE_ENV === 'production' 
+        ? "https://helpmarq-backend.onrender.com"
+        : "http://localhost:3000",
+    
     trustedOrigins: [
         "http://localhost:8080",
-        "https://helpmarq.vercel.app",
-        "https://sapavault.com",
-        "https://www.sapavault.com"
+        "http://127.0.0.1:8080",
+        "https://helpmarq.vercel.app"
     ],
     
     advanced: {
-        cookieName: "helpmarq_session",
-        crossSubdomainCookie: {
-            enabled: true,
-            domain: process.env.COOKIE_DOMAIN || undefined
+        useSecureCookies: process.env.NODE_ENV === 'production',
+        crossSubDomainCookie: {
+            enabled: false
         }
     }
 });

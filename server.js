@@ -3,16 +3,17 @@ import express from 'express';
 import cors from 'cors';
 import connectDB from './config/database.js';
 import rateLimit from 'express-rate-limit';
+import auth from './config/auth.js';
+import mongoose from 'mongoose';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// CRITICAL: Connect to MongoDB BEFORE initializing Better Auth
+// Connect to MongoDB FIRST
 await connectDB();
 
-// Wait for MongoDB connection to be ready
-import mongoose from 'mongoose';
+// Wait for MongoDB connection
 await new Promise((resolve) => {
     if (mongoose.connection.readyState === 1) {
         resolve();
@@ -22,9 +23,6 @@ await new Promise((resolve) => {
 });
 
 console.log('✓ MongoDB connection ready');
-
-// Now import auth (after MongoDB is connected)
-const { default: auth } = await import('./config/auth.js');
 
 // CORS configuration
 const corsOptions = {
@@ -41,17 +39,16 @@ app.use(express.json());
 // Rate limiting
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per windowMs
-    message: 'Too many requests from this IP, please try again later.'
+    max: 100,
+    message: 'Too many requests, please try again later.'
 });
 
 app.use('/api/', limiter);
 
-// Request logging
+// Request logging in development
 if (NODE_ENV === 'development') {
     app.use((req, res, next) => {
-        const timestamp = new Date().toISOString();
-        console.log(`[${timestamp}] ${req.method} ${req.url}`);
+        console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
         next();
     });
 }
@@ -66,6 +63,37 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Root route
+app.get('/', (req, res) => {
+    res.json({
+        message: 'HelpMarq API - Expert insights. Accessible pricing.',
+        version: '2.0',
+        status: 'Running',
+        environment: NODE_ENV
+    });
+});
+
+// Better Auth - Mount BEFORE other routes
+app.all('/api/auth/*', async (req, res) => {
+    // Construct the full URL for Better Auth
+    const protocol = req.protocol || 'http';
+    const host = req.get('host') || 'localhost:3000';
+    const fullUrl = `${protocol}://${host}${req.originalUrl}`;
+    
+    // Create a new request object with the full URL
+    const authRequest = {
+        ...req,
+        url: fullUrl,
+        headers: {
+            ...req.headers,
+            'x-forwarded-proto': protocol,
+            'x-forwarded-host': host
+        }
+    };
+    
+    return auth.handler(authRequest, res);
+});
+
 // Import routes
 import authRouter from './routes/auth.js';
 import projectsRouter from './routes/projects.js';
@@ -75,27 +103,7 @@ import feedbackRouter from './routes/feedback.js';
 import statsRouter from './routes/stats.js';
 import notificationsRouter from './routes/notifications.js';
 
-// Root route
-app.get('/', (req, res) => {
-    res.json({
-        message: 'HelpMarq API - Expert insights. Accessible pricing.',
-        version: '2.0',
-        status: 'Running',
-        environment: NODE_ENV,
-        endpoints: {
-            health: '/health',
-            auth: '/api/auth',
-            projects: '/api/projects',
-            reviewers: '/api/reviewers',
-            applications: '/api/applications',
-            feedback: '/api/feedback',
-            stats: '/api/stats',
-            notifications: '/api/notifications'
-        }
-    });
-});
-
-// Mount routes
+// Mount API routes
 app.use('/api/auth', authRouter);
 app.use('/api/projects', projectsRouter);
 app.use('/api/reviewers', reviewersRouter);
@@ -112,7 +120,7 @@ app.use((req, res) => {
     });
 });
 
-// Error handler
+// Global error handler
 app.use((err, req, res, next) => {
     console.error('Error:', err);
     
@@ -134,7 +142,14 @@ app.listen(PORT, () => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
     console.log('SIGTERM received, shutting down gracefully');
+    await mongoose.connection.close();
+    process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+    console.log('SIGINT received, shutting down gracefully');
+    await mongoose.connection.close();
     process.exit(0);
 });

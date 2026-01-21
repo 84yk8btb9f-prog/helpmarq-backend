@@ -8,7 +8,7 @@ import { sendReviewCompleteEmail, sendRatingReceivedEmail } from '../services/em
 
 const router = express.Router();
 
-// Get all feedback for a project
+// Get feedback for a project
 router.get('/project/:projectId', async (req, res) => {
     try {
         const feedback = await Feedback.find({ 
@@ -21,6 +21,7 @@ router.get('/project/:projectId', async (req, res) => {
             data: feedback
         });
     } catch (error) {
+        console.error('Get feedback error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -28,7 +29,7 @@ router.get('/project/:projectId', async (req, res) => {
     }
 });
 
-// Get all feedback by a reviewer
+// Get feedback by reviewer
 router.get('/reviewer/:reviewerId', async (req, res) => {
     try {
         const feedback = await Feedback.find({ 
@@ -43,6 +44,7 @@ router.get('/reviewer/:reviewerId', async (req, res) => {
             data: feedback
         });
     } catch (error) {
+        console.error('Get reviewer feedback error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -62,6 +64,7 @@ router.post('/', requireAuth, async (req, res) => {
             });
         }
 
+        // Check if application is approved
         const application = await Application.findOne({
             projectId,
             reviewerId,
@@ -75,6 +78,7 @@ router.post('/', requireAuth, async (req, res) => {
             });
         }
 
+        // Check if feedback already exists
         const existingFeedback = await Feedback.findOne({ projectId, reviewerId });
         if (existingFeedback) {
             return res.status(400).json({
@@ -91,6 +95,7 @@ router.post('/', requireAuth, async (req, res) => {
             projectRating: projectRating || null
         });
 
+        // Update project review count
         await Project.findByIdAndUpdate(projectId, {
             $inc: { reviewsCount: 1 }
         });
@@ -99,10 +104,9 @@ router.post('/', requireAuth, async (req, res) => {
         const project = await Project.findById(projectId);
         const reviewer = await Reviewer.findById(reviewerId);
 
-        // 📧 SEND REVIEW COMPLETE EMAIL TO OWNER
+        // Send email to project owner
         try {
             await sendReviewCompleteEmail(project, feedback, reviewer);
-            console.log('✓ Review complete email sent to owner');
         } catch (emailError) {
             console.error('Email error (non-blocking):', emailError);
         }
@@ -113,6 +117,8 @@ router.post('/', requireAuth, async (req, res) => {
             data: feedback
         });
     } catch (error) {
+        console.error('Submit feedback error:', error);
+        
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
@@ -163,10 +169,10 @@ router.put('/:id/rate', requireAuth, async (req, res) => {
             });
         }
 
+        // Calculate XP based on rating
         let xpAwarded = 100;
         if (rating === 5) xpAwarded += 50;
         else if (rating === 4) xpAwarded += 25;
-        else if (rating === 3) xpAwarded += 0;
         else if (rating === 2) xpAwarded -= 25;
         else if (rating === 1) xpAwarded -= 50;
 
@@ -176,13 +182,15 @@ router.put('/:id/rate', requireAuth, async (req, res) => {
         feedback.ratedAt = new Date();
         await feedback.save();
 
+        // Update reviewer stats
         const reviewer = await Reviewer.findById(feedback.reviewerId);
-        const oldLevel = reviewer.level;
-        
         if (reviewer) {
+            const oldLevel = reviewer.level;
+            
             reviewer.xp += xpAwarded;
             reviewer.totalReviews += 1;
 
+            // Calculate new average rating
             const allFeedback = await Feedback.find({
                 reviewerId: reviewer._id,
                 isRated: true
@@ -192,31 +200,40 @@ router.put('/:id/rate', requireAuth, async (req, res) => {
             reviewer.averageRating = totalRating / allFeedback.length;
 
             reviewer.updateLevel();
+            const leveledUp = reviewer.level > oldLevel;
+            
             await reviewer.save();
-        }
 
-        // Get project for email
-        const project = await Project.findById(feedback.projectId);
+            // Get project for email
+            const project = await Project.findById(feedback.projectId);
 
-        // 📧 SEND RATING RECEIVED EMAIL TO REVIEWER
-        try {
-            await sendRatingReceivedEmail(reviewer, feedback, project);
-            console.log('✓ Rating received email sent to reviewer');
-        } catch (emailError) {
-            console.error('Email error (non-blocking):', emailError);
-        }
-
-        res.json({
-            success: true,
-            message: 'Feedback rated successfully',
-            data: {
-                feedback,
-                xpAwarded,
-                newReviewerXP: reviewer ? reviewer.xp : null,
-                newReviewerLevel: reviewer ? reviewer.level : null
+            // Send rating email to reviewer
+            try {
+                await sendRatingReceivedEmail(reviewer, feedback, project);
+            } catch (emailError) {
+                console.error('Email error (non-blocking):', emailError);
             }
-        });
+
+            res.json({
+                success: true,
+                message: 'Feedback rated successfully',
+                data: {
+                    feedback,
+                    xpAwarded,
+                    leveledUp,
+                    newReviewerXP: reviewer.xp,
+                    newReviewerLevel: reviewer.level
+                }
+            });
+        } else {
+            res.json({
+                success: true,
+                message: 'Feedback rated successfully',
+                data: { feedback, xpAwarded }
+            });
+        }
     } catch (error) {
+        console.error('Rate feedback error:', error);
         res.status(500).json({
             success: false,
             error: error.message

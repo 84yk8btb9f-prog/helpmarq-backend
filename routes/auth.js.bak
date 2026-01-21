@@ -1,17 +1,16 @@
 import express from 'express';
+import auth from '../config/auth.js';
 import { requireAuth, getUserId } from '../middleware/auth.js';
 import Reviewer from '../models/Reviewer.js';
 import Project from '../models/Project.js';
-import { sendWelcomeEmail } from '../services/emailService.js';
 
 const router = express.Router();
 
-// Get current user info and role
+// Custom routes FIRST
 router.get('/me', requireAuth, async (req, res) => {
     try {
         const userId = getUserId(req);
         
-        // Check if reviewer exists
         const reviewer = await Reviewer.findOne({ userId });
         if (reviewer) {
             return res.json({
@@ -21,7 +20,6 @@ router.get('/me', requireAuth, async (req, res) => {
             });
         }
         
-        // Check if user has projects (is owner)
         const projects = await Project.find({ ownerId: userId });
         if (projects.length > 0) {
             return res.json({
@@ -31,7 +29,6 @@ router.get('/me', requireAuth, async (req, res) => {
             });
         }
         
-        // New user, no role yet
         res.json({
             success: true,
             role: null,
@@ -39,7 +36,6 @@ router.get('/me', requireAuth, async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Get user error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -47,13 +43,12 @@ router.get('/me', requireAuth, async (req, res) => {
     }
 });
 
-// Create reviewer profile
 router.post('/create-reviewer', requireAuth, async (req, res) => {
     try {
         const userId = getUserId(req);
+        
         const { username, email, expertise, experience, portfolio, bio } = req.body;
         
-        // Validation
         if (!username || username.length < 3) {
             return res.status(400).json({
                 success: false,
@@ -82,16 +77,14 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
             });
         }
         
-        // Check if reviewer already exists
         const existing = await Reviewer.findOne({ userId });
         if (existing) {
             return res.status(400).json({
                 success: false,
-                error: 'Reviewer profile already exists'
+                error: 'You already have a reviewer profile'
             });
         }
         
-        // Create reviewer
         const reviewer = await Reviewer.create({
             userId,
             username,
@@ -102,12 +95,7 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
             bio
         });
         
-        // Send welcome email
-        try {
-            await sendWelcomeEmail({ email, name: username }, 'reviewer');
-        } catch (emailError) {
-            console.error('Email error (non-blocking):', emailError);
-        }
+        console.log('✓ Reviewer created:', reviewer._id);
         
         res.status(201).json({
             success: true,
@@ -129,7 +117,7 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
-                error: 'Username already taken'
+                error: 'Username already exists'
             });
         }
         
@@ -139,5 +127,8 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
         });
     }
 });
+
+// Better Auth handler LAST - use middleware not router.all
+router.use(auth.handler);
 
 export default router;

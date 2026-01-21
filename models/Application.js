@@ -9,7 +9,8 @@ const applicationSchema = new mongoose.Schema({
     reviewerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Reviewer',
-        required: true
+        required: true,
+        index: true  // ← Add for querying
     },
     reviewerUsername: {
         type: String,
@@ -17,15 +18,15 @@ const applicationSchema = new mongoose.Schema({
     },
     qualifications: {
         type: String,
-        required: [true, 'Please explain why you are qualified'],
-        minlength: [20, 'Qualifications must be at least 20 characters'],
-        maxlength: [500, 'Qualifications cannot exceed 500 characters']
+        required: true,
+        minlength: 20,
+        maxlength: 500
     },
     focusAreas: {
         type: String,
-        required: [true, 'Please specify what you will focus on'],
-        minlength: [20, 'Focus areas must be at least 20 characters'],
-        maxlength: [500, 'Focus areas cannot exceed 500 characters']
+        required: true,
+        minlength: 20,
+        maxlength: 500
     },
     ndaAccepted: {
         type: Boolean,
@@ -57,5 +58,6 @@ const applicationSchema = new mongoose.Schema({
 });
 
 applicationSchema.index({ projectId: 1, reviewerId: 1 }, { unique: true });
+// REMOVE: applicationSchema.index({ reviewerId: 1 });
 
-export default mongoose.models.Application || mongoose.model('Application', applicationSchema);
+export default mongoose.model('Application', applicationSchema);
