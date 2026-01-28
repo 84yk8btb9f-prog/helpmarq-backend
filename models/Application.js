@@ -52,6 +52,9 @@ const applicationSchema = new mongoose.Schema({
     },
     reviewedAt: {
         type: Date
+    },
+    rejectionReason: {
+        type: String
     }
 }, {
     timestamps: true

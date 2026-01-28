@@ -169,12 +169,27 @@ router.put('/:id/rate', requireAuth, async (req, res) => {
             });
         }
 
-        // Calculate XP based on rating
-        let xpAwarded = 100;
-        if (rating === 5) xpAwarded += 50;
-        else if (rating === 4) xpAwarded += 25;
-        else if (rating === 2) xpAwarded -= 25;
-        else if (rating === 1) xpAwarded -= 50;
+        // ✅ FIX: Get actual project XP
+        const project = await Project.findById(feedback.projectId);
+        if (!project) {
+            return res.status(404).json({
+                success: false,
+                error: 'Project not found'
+            });
+        }
+
+        // ✅ FIX: Use project's actual XP as base
+        let xpAwarded = project.xpReward;
+        
+        // Bonus/penalty based on rating
+        if (rating === 5) xpAwarded += 50;      // 5 stars: +50 XP bonus
+        else if (rating === 4) xpAwarded += 25; // 4 stars: +25 XP bonus
+        else if (rating === 3) xpAwarded += 0;  // 3 stars: no change
+        else if (rating === 2) xpAwarded -= 25; // 2 stars: -25 XP penalty
+        else if (rating === 1) xpAwarded -= 50; // 1 star: -50 XP penalty
+
+        // Don't award negative XP
+        xpAwarded = Math.max(0, xpAwarded);
 
         feedback.ownerRating = rating;
         feedback.xpAwarded = xpAwarded;
@@ -204,14 +219,13 @@ router.put('/:id/rate', requireAuth, async (req, res) => {
             
             await reviewer.save();
 
-            // Get project for email
-            const project = await Project.findById(feedback.projectId);
-
             // Send rating email to reviewer
             try {
+                console.log('Sending rating email to:', reviewer.email);
                 await sendRatingReceivedEmail(reviewer, feedback, project);
+                console.log('✓ Rating email sent successfully');
             } catch (emailError) {
-                console.error('Email error (non-blocking):', emailError);
+                console.error('❌ Rating email failed (non-blocking):', emailError);
             }
 
             res.json({

@@ -4,11 +4,13 @@ const reviewerSchema = new mongoose.Schema({
     userId: {
         type: String,
         required: true,
-        unique: true
+        unique: true,
+        index: true
     },
     username: {
         type: String,
         required: true,
+        unique: true,
         trim: true,
         minlength: 3,
         maxlength: 50
@@ -66,7 +68,7 @@ const reviewerSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Add compound index for sorting
+// Only these indexes
 reviewerSchema.index({ xp: -1, level: -1 });
 
 reviewerSchema.methods.updateLevel = function() {

@@ -102,11 +102,14 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
             bio
         });
 
-        // Send welcome email (non-blocking)
+        // ✅ FIX: Send welcome email with better error handling
         try {
+            console.log('Sending welcome email to:', email);
             await sendWelcomeEmail({ email, name: username }, 'reviewer');
+            console.log('✓ Welcome email sent successfully');
         } catch (emailError) {
-            console.error('Email error (non-blocking):', emailError);
+            console.error('❌ Welcome email failed (non-blocking):', emailError);
+            // Don't fail the request if email fails
         }
 
         res.status(201).json({

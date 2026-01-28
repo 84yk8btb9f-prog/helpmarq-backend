@@ -3,7 +3,6 @@ import Reviewer from '../models/Reviewer.js';
 
 const router = express.Router();
 
-// Get all reviewers with sorting and pagination
 router.get('/', async (req, res) => {
     try {
         const { page = 1, limit = 10, sort = 'xp' } = req.query;
@@ -51,7 +50,6 @@ router.get('/', async (req, res) => {
             data: reviewers
         });
     } catch (error) {
-        console.error('Get reviewers error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -59,7 +57,6 @@ router.get('/', async (req, res) => {
     }
 });
 
-// Get single reviewer
 router.get('/:id', async (req, res) => {
     try {
         const reviewer = await Reviewer.findById(req.params.id);
@@ -76,7 +73,38 @@ router.get('/:id', async (req, res) => {
             data: reviewer
         });
     } catch (error) {
-        console.error('Get reviewer error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+router.post('/', async (req, res) => {
+    try {
+        const reviewer = await Reviewer.create(req.body);
+
+        res.status(201).json({
+            success: true,
+            message: 'Reviewer created',
+            data: reviewer
+        });
+    } catch (error) {
+        if (error.name === 'ValidationError') {
+            const errors = Object.values(error.errors).map(err => err.message);
+            return res.status(400).json({
+                success: false,
+                error: errors[0]
+            });
+        }
+
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                error: 'Username or email already exists'
+            });
+        }
+
         res.status(500).json({
             success: false,
             error: error.message

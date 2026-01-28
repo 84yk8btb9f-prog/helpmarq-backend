@@ -65,6 +65,22 @@ router.get('/', async (req, res) => {
     }
 });
 
+router.get('/available', async (req, res) => {
+    const { reviewerId } = req.query;
+    
+    // Get my applications
+    const myApps = await Application.find({ reviewerId }).select('projectId');
+    const appliedIds = myApps.map(app => app.projectId.toString());
+    
+    // Get projects excluding ones I applied to
+    const projects = await Project.find({
+        status: 'pending',
+        _id: { $nin: appliedIds }
+    });
+    
+    res.json({ success: true, projects });
+});
+
 // Get single project
 router.get('/:id', async (req, res) => {
     try {
@@ -145,6 +161,54 @@ router.delete('/:id', requireAuth, async (req, res) => {
         res.json({
             success: true,
             message: 'Project deleted',
+            data: project
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+// Get project details (full access only if approved)
+router.get('/:id/full', requireAuth, async (req, res) => {
+    try {
+        const userId = getUserId(req);
+        const project = await Project.findById(req.params.id);
+
+        if (!project) {
+            return res.status(404).json({
+                success: false,
+                error: 'Project not found'
+            });
+        }
+
+        // Check if user is owner or approved reviewer
+        const isOwner = project.ownerId === userId;
+        
+        let isApproved = false;
+        if (!isOwner) {
+            // Check if reviewer is approved
+            const reviewer = await Reviewer.findOne({ userId });
+            if (reviewer) {
+                const application = await Application.findOne({
+                    projectId: project._id,
+                    reviewerId: reviewer._id,
+                    status: 'approved'
+                });
+                isApproved = !!application;
+            }
+        }
+
+        if (!isOwner && !isApproved) {
+            return res.status(403).json({
+                success: false,
+                error: 'You must be approved to view full project details'
+            });
+        }
+
+        res.json({
+            success: true,
             data: project
         });
     } catch (error) {

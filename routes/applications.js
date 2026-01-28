@@ -5,8 +5,9 @@ import Reviewer from '../models/Reviewer.js';
 import { requireAuth, getUserId } from '../middleware/auth.js';
 import { 
     sendApplicationReceivedEmail, 
-    sendApplicationApprovedEmail 
-} from '../services/emailService.js';
+    sendApplicationApprovedEmail,
+    sendApplicationRejectedEmail
+} from '../services/emailService.js'; 
 
 const router = express.Router();
 
@@ -33,13 +34,13 @@ router.get('/project/:projectId', requireAuth, async (req, res) => {
     }
 });
 
-// Get applications by reviewer
+// ✅ FIX ISSUE 2: Get applications by reviewer - NOW INCLUDES FULL PROJECT DETAILS
 router.get('/reviewer/:reviewerId', requireAuth, async (req, res) => {
     try {
         const applications = await Application.find({ 
             reviewerId: req.params.reviewerId 
         })
-        .populate('projectId', 'title type ownerName xpReward deadline')
+        .populate('projectId') // ✅ FIX: Populate ALL fields (includes description + link for approved reviewers)
         .sort({ appliedAt: -1 });
 
         res.json({
@@ -105,11 +106,22 @@ router.post('/', requireAuth, async (req, res) => {
             $inc: { applicantsCount: 1 }
         });
 
-        // Send email to project owner
+        // Send email notification to OWNER
         try {
-            await sendApplicationReceivedEmail(application, project, reviewer);
+            console.log('Sending application email to OWNER:', project.ownerEmail);
+            
+            await sendApplicationReceivedEmail(
+                project.ownerEmail,
+                {
+                    ownerName: project.ownerName,
+                    reviewerName: reviewer.username,
+                    projectTitle: project.title
+                }
+            );
+            
+            console.log('✅ Application email sent to owner');
         } catch (emailError) {
-            console.error('Email error (non-blocking):', emailError);
+            console.error('❌ Email error (non-blocking):', emailError);
         }
 
         res.status(201).json({
@@ -142,52 +154,64 @@ router.post('/', requireAuth, async (req, res) => {
     }
 });
 
-// Approve application
-router.put('/:id/approve', requireAuth, async (req, res) => {
+// APPROVE APPLICATION
+router.put('/:applicationId/approve', requireAuth, async (req, res) => {
     try {
-        const application = await Application.findById(req.params.id);
-
+        const { applicationId } = req.params;
+        
+        console.log('✅ Approving application:', applicationId);
+        
+        // Get application with populated project
+        const application = await Application.findById(applicationId)
+            .populate('projectId');
+        
         if (!application) {
             return res.status(404).json({
                 success: false,
                 error: 'Application not found'
             });
         }
-
-        if (application.status !== 'pending') {
-            return res.status(400).json({
-                success: false,
-                error: 'Application has already been reviewed'
-            });
-        }
-
+        
+        // Update status
         application.status = 'approved';
         application.reviewedAt = new Date();
         await application.save();
-
+        
+        console.log('✅ Application status updated to approved');
+        
+        // Get reviewer data
+        try {
+            const reviewer = await Reviewer.findById(application.reviewerId);
+            
+            if (reviewer && reviewer.email) {
+                await sendApplicationApprovedEmail(
+                    reviewer.email,
+                    {
+                        reviewerName: reviewer.username,
+                        projectTitle: application.projectId.title
+                    }
+                );
+                console.log('✅ Approval email sent to:', reviewer.email);
+            } else {
+                console.error('❌ Could not find reviewer email');
+            }
+        } catch (emailError) {
+            console.error('❌ Email failed (non-blocking):', emailError);
+        }
+        
         // Update project approved count
-        await Project.findByIdAndUpdate(application.projectId, {
+        await Project.findByIdAndUpdate(application.projectId._id, {
             $inc: { approvedCount: 1 }
         });
-
-        // Get reviewer and project for email
-        const reviewer = await Reviewer.findById(application.reviewerId);
-        const project = await Project.findById(application.projectId);
-
-        // Send approval email
-        try {
-            await sendApplicationApprovedEmail(reviewer, project);
-        } catch (emailError) {
-            console.error('Email error (non-blocking):', emailError);
-        }
-
+        
         res.json({
             success: true,
             message: 'Application approved',
-            data: application
+            application
         });
+        
     } catch (error) {
-        console.error('Approve application error:', error);
+        console.error('❌ Approve error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -195,36 +219,64 @@ router.put('/:id/approve', requireAuth, async (req, res) => {
     }
 });
 
-// Reject application
-router.put('/:id/reject', requireAuth, async (req, res) => {
+// REJECT APPLICATION
+router.put('/:applicationId/reject', requireAuth, async (req, res) => {
     try {
-        const application = await Application.findById(req.params.id);
-
+        const { applicationId } = req.params;
+        const { reason } = req.body;
+        
+        console.log('✅ Rejecting application:', applicationId);
+        
+        // Get application with populated project
+        const application = await Application.findById(applicationId)
+            .populate('projectId');
+        
         if (!application) {
             return res.status(404).json({
                 success: false,
                 error: 'Application not found'
             });
         }
-
-        if (application.status !== 'pending') {
-            return res.status(400).json({
-                success: false,
-                error: 'Application has already been reviewed'
-            });
-        }
-
+        
+        // Update status
         application.status = 'rejected';
+        application.rejectionReason = reason || 'Not a good fit for this project';
         application.reviewedAt = new Date();
         await application.save();
-
+        
+        console.log('✅ Application status updated to rejected');
+        
+        // Get reviewer data
+        try {
+            const reviewer = await Reviewer.findById(application.reviewerId);
+            
+            if (reviewer && reviewer.email) {
+                await sendApplicationRejectedEmail(
+                    reviewer.email,
+                    {
+                        reviewerName: reviewer.username,
+                        project: application.projectId ? {
+                            title: application.projectId.title
+                        } : null,
+                        reason: application.rejectionReason
+                    }
+                );
+                console.log('✅ Rejection email sent to:', reviewer.email);
+            } else {
+                console.error('❌ Could not find reviewer email');
+            }
+        } catch (emailError) {
+            console.error('❌ Email failed (non-blocking):', emailError);
+        }
+        
         res.json({
             success: true,
             message: 'Application rejected',
-            data: application
+            application
         });
+        
     } catch (error) {
-        console.error('Reject application error:', error);
+        console.error('❌ Reject error:', error);
         res.status(500).json({
             success: false,
             error: error.message
