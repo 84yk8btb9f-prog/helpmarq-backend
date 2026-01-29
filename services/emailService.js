@@ -4,12 +4,14 @@ const FROM_EMAIL = 'no-reply@sapavault.com';
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // ============================================
-// EMAIL TEMPLATES
+// EMAIL TEMPLATES - FIXED STRUCTURE
 // ============================================
 
 const emailTemplates = {
     // 1. OTP VERIFICATION EMAIL
-    otpVerification: (data) => `
+    otpVerification: (data) => ({
+        subject: 'Verify Your Email - HelpMarq',
+        html: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -58,30 +60,29 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-    `,
+        `
+    }),
 
     // 2. WELCOME PROJECT OWNER EMAIL
-    welcomeOwner: (data) => `
+    welcomeOwner: (data) => ({
+        subject: 'Welcome to HelpMarq - Start Getting Feedback!',
+        html: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to HelpMarq</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                    <!-- Header -->
                     <tr>
                         <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
                             <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
-                    
-                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
                             <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #1C1C1E;">Welcome, ${data.name}! 👋</h2>
@@ -99,14 +100,12 @@ const emailTemplates = {
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
                                     <td align="center">
-                                        <a href="https://helpmarq.com/dashboard" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Go to Dashboard</a>
+                                        <a href="https://helpmarq-frontend.vercel.app" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Go to Dashboard</a>
                                     </td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
-                    
-                    <!-- Footer -->
                     <tr>
                         <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
                             <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
@@ -118,30 +117,29 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-    `,
+        `
+    }),
 
     // 3. WELCOME REVIEWER EMAIL
-    welcomeReviewer: (data) => `
+    welcomeReviewer: (data) => ({
+        subject: 'Welcome to HelpMarq - Start Reviewing!',
+        html: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to HelpMarq</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                    <!-- Header -->
                     <tr>
                         <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
                             <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
-                    
-                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
                             <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #1C1C1E;">Welcome, ${data.name}! 🌟</h2>
@@ -160,14 +158,12 @@ const emailTemplates = {
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
                                     <td align="center">
-                                        <a href="https://helpmarq.com/apply" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Start Reviewing</a>
+                                        <a href="https://helpmarq-frontend.vercel.app" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Start Reviewing</a>
                                     </td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
-                    
-                    <!-- Footer -->
                     <tr>
                         <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
                             <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
@@ -179,30 +175,29 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-    `,
+        `
+    }),
 
     // 4. APPLICATION RECEIVED (Owner notification)
-    applicationReceived: (data) => `
+    applicationReceived: (data) => ({
+        subject: `New Application: ${data.reviewerName} wants to review "${data.projectTitle}"`,
+        html: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>New Application Received</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                    <!-- Header -->
                     <tr>
                         <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
                             <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
-                    
-                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
                             <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #1C1C1E;">New Application Received 📬</h2>
@@ -226,14 +221,12 @@ const emailTemplates = {
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
                                     <td align="center">
-                                        <a href="https://helpmarq.com/applicants" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Application</a>
+                                        <a href="https://helpmarq-frontend.vercel.app" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Application</a>
                                     </td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
-                    
-                    <!-- Footer -->
                     <tr>
                         <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
                             <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
@@ -245,30 +238,29 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-    `,
+        `
+    }),
 
     // 5. APPLICATION APPROVED (Reviewer notification)
-    applicationApproved: (data) => `
+    applicationApproved: (data) => ({
+        subject: `Approved! You can now review "${data.projectTitle}"`,
+        html: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Application Approved</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                    <!-- Header -->
                     <tr>
                         <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
                             <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
-                    
-                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
                             <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #34C759;">Congratulations! Application Approved ✅</h2>
@@ -288,14 +280,12 @@ const emailTemplates = {
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
                                     <td align="center">
-                                        <a href="https://helpmarq.com/apply" style="display: inline-block; padding: 14px 32px; background-color: #34C759; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Project</a>
+                                        <a href="https://helpmarq-frontend.vercel.app" style="display: inline-block; padding: 14px 32px; background-color: #34C759; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Project</a>
                                     </td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
-                    
-                    <!-- Footer -->
                     <tr>
                         <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
                             <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
@@ -307,30 +297,29 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-    `,
+        `
+    }),
 
     // 6. APPLICATION REJECTED (Reviewer notification)
-    applicationRejected: (data) => `
+    applicationRejected: (data) => ({
+        subject: `Application Update: "${data.project?.title || 'Project'}"`,
+        html: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Application Status Update</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                    <!-- Header -->
                     <tr>
                         <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
                             <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
-                    
-                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
                             <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #1C1C1E;">Application Not Selected</h2>
@@ -340,7 +329,7 @@ const emailTemplates = {
                                 <table width="100%" cellpadding="0" cellspacing="0">
                                     <tr>
                                         <td style="padding: 8px 0; color: #8E8E93; font-size: 14px;">Project:</td>
-                                        <td style="padding: 8px 0; color: #1C1C1E; font-weight: 600; text-align: right;">${data.projectTitle}</td>
+                                        <td style="padding: 8px 0; color: #1C1C1E; font-weight: 600; text-align: right;">${data.project?.title || 'N/A'}</td>
                                     </tr>
                                     ${data.reason ? `
                                     <tr>
@@ -358,14 +347,12 @@ const emailTemplates = {
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
                                     <td align="center">
-                                        <a href="https://helpmarq.com/apply" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Browse More Projects</a>
+                                        <a href="https://helpmarq-frontend.vercel.app" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Browse More Projects</a>
                                     </td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
-                    
-                    <!-- Footer -->
                     <tr>
                         <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
                             <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
@@ -377,30 +364,29 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-    `,
+        `
+    }),
 
     // 7. PROJECT SUBMITTED (Owner confirmation)
-    projectSubmitted: (data) => `
+    projectSubmitted: (data) => ({
+        subject: `Project Submitted: "${data.projectTitle}"`,
+        html: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project Submitted Successfully</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                    <!-- Header -->
                     <tr>
                         <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
                             <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
-                    
-                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
                             <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #34C759;">Project Submitted Successfully! 🎉</h2>
@@ -420,14 +406,12 @@ const emailTemplates = {
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
                                     <td align="center">
-                                        <a href="https://helpmarq.com/applicants" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Applications</a>
+                                        <a href="https://helpmarq-frontend.vercel.app" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Applications</a>
                                     </td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
-                    
-                    <!-- Footer -->
                     <tr>
                         <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
                             <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
@@ -439,30 +423,29 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-    `,
+        `
+    }),
 
     // 8. REVIEW COMPLETE (Owner notification)
-    reviewComplete: (data) => `
+    reviewComplete: (data) => ({
+        subject: `New Feedback Received for "${data.projectTitle}"`,
+        html: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>New Feedback Received</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                    <!-- Header -->
                     <tr>
                         <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
                             <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
-                    
-                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
                             <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #1C1C1E;">New Feedback Received! 📝</h2>
@@ -486,14 +469,12 @@ const emailTemplates = {
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
                                     <td align="center">
-                                        <a href="https://helpmarq.com/feedback" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Feedback</a>
+                                        <a href="https://helpmarq-frontend.vercel.app" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Feedback</a>
                                     </td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
-                    
-                    <!-- Footer -->
                     <tr>
                         <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
                             <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
@@ -505,30 +486,29 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-    `,
+        `
+    }),
 
     // 9. RATING RECEIVED (Reviewer notification)
-    ratingReceived: (data) => `
+    ratingReceived: (data) => ({
+        subject: `You Earned ${data.xpAwarded} XP for "${data.projectTitle}"!`,
+        html: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>You Received a Rating!</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                    <!-- Header -->
                     <tr>
                         <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
                             <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
-                    
-                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
                             <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #34C759;">You Received a Rating! ⭐</h2>
@@ -556,14 +536,12 @@ const emailTemplates = {
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
                                     <td align="center">
-                                        <a href="https://helpmarq.com/profile" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Profile</a>
+                                        <a href="https://helpmarq-frontend.vercel.app" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Profile</a>
                                     </td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
-                    
-                    <!-- Footer -->
                     <tr>
                         <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
                             <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
@@ -575,12 +553,12 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-    `
+        `
+    })
 };
 
-
 // ============================================
-// SEND EMAIL ENGINE
+// SEND EMAIL ENGINE - FIXED
 // ============================================
 
 async function sendEmail(templateName, to, data) {
@@ -589,6 +567,7 @@ async function sendEmail(templateName, to, data) {
             throw new Error(`Email template "${templateName}" not found`);
         }
         
+        // ✅ FIX: Get {subject, html} object
         const template = emailTemplates[templateName](data);
 
         const { data: result, error } = await resend.emails.send({
@@ -601,7 +580,7 @@ async function sendEmail(templateName, to, data) {
         if (error) throw error;
 
         console.log(`✅ Email sent: ${templateName} to ${to}`);
-        return { success: true, id: result.id };
+        return { success: true, id: result?.id };
     } catch (error) {
         console.error(`❌ Email failed: ${templateName} to ${to} | ${error.message}`);
         return { success: false, error: error.message };
