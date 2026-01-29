@@ -5,6 +5,11 @@ import mongoose from 'mongoose';
 const auth = betterAuth({
     database: mongodbAdapter(mongoose.connection),
     
+    // ✅ FIX: Base URL for production
+    baseURL: process.env.NODE_ENV === 'production' 
+        ? "https://helpmarq-backend.onrender.com"
+        : "http://localhost:3000",
+    
     emailAndPassword: {
         enabled: true,
         autoSignIn: false,
@@ -47,16 +52,35 @@ const auth = betterAuth({
         expiresIn: 10 * 60 // 10 minutes
     },
     
-    // ✅ FIX: Correct trusted origins for production
+    // ✅ FIX: Advanced session configuration for cross-domain
+    session: {
+        cookieCache: {
+            enabled: true,
+            maxAge: 5 * 60 // 5 minutes
+        },
+        expiresIn: 60 * 60 * 24 * 7, // 7 days
+        updateAge: 60 * 60 * 24, // 1 day
+        cookieName: "helpmarq_session",
+    },
+    
+    // ✅ FIX: Advanced options for cross-domain cookies
+    advanced: {
+        cookieOptions: {
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            secure: process.env.NODE_ENV === 'production',
+            httpOnly: true,
+            path: '/',
+        }
+    },
+    
+    // ✅ FIXED: Correct trustedOrigins for production
     trustedOrigins: process.env.NODE_ENV === 'production'
         ? [
             "https://helpmarq-frontend.vercel.app",
-            "https://helpmarq.vercel.app"
+            "https://www.sapavault.com",
+            "https://sapavault.com"
           ]
-        : [
-            "http://localhost:8080", 
-            "http://127.0.0.1:8080"
-          ]
+        : ["http://localhost:8080", "http://127.0.0.1:8080"]
 });
 
 export default auth;
