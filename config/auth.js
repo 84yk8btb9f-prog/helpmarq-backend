@@ -65,15 +65,13 @@ const auth = betterAuth({
     
     // ✅ FIX: Critical cookie options for cross-origin
     advanced: {
-        cookieOptions: {
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-            secure: process.env.NODE_ENV === 'production', // MUST be true in production for sameSite: none
-            httpOnly: true,
-            path: '/',
-            // ✅ FIX: Don't set domain - let browser handle it
-            // Setting domain can cause issues with Render/Vercel
-        }
-    },
+    cookieOptions: {
+        sameSite: 'lax', // Change from 'none' to 'lax'
+        secure: true,
+        httpOnly: true,
+        path: '/',
+    }
+},
     
     // ✅ FIX: Correct trustedOrigins - ONLY your actual frontend
     trustedOrigins: process.env.NODE_ENV === 'production'
