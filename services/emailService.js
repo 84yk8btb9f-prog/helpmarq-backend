@@ -578,98 +578,72 @@ const emailTemplates = {
     `
 };
 
+
 // ============================================
-// SEND EMAIL FUNCTION
+// SEND EMAIL ENGINE
 // ============================================
 
 async function sendEmail(templateName, to, data) {
     try {
-        console.log(`📧 Preparing email: ${templateName} to ${to}`);
-        
         if (!emailTemplates[templateName]) {
             throw new Error(`Email template "${templateName}" not found`);
         }
         
         const template = emailTemplates[templateName](data);
 
-        console.log(`📨 Subject: ${template.subject}`);
-        console.log(`📤 Sending via Resend...`);
-
-        const result = await resend.emails.send({
+        const { data: result, error } = await resend.emails.send({
             from: FROM_EMAIL,
             to: to,
             subject: template.subject,
             html: template.html
         });
 
-        console.log(`✅ Email sent successfully: ${templateName} to ${to}`);
-        console.log(`📬 Resend ID:`, result.id);
-        
+        if (error) throw error;
+
+        console.log(`✅ Email sent: ${templateName} to ${to}`);
         return { success: true, id: result.id };
     } catch (error) {
-        console.error(`❌ Email failed: ${templateName} to ${to}`);
-        console.error(`Error message: ${error.message}`);
-        
+        console.error(`❌ Email failed: ${templateName} to ${to} | ${error.message}`);
         return { success: false, error: error.message };
     }
 }
 
 // ============================================
-// EXPORT FUNCTIONS (ONLY ONCE!)
+// EXPORTS
 // ============================================
 
-export async function sendOTPEmail(email, code) {
-    return sendEmail('otp', email, { code });
-}
+export const sendOTPEmail = (email, code) => 
+    sendEmail('otpVerification', email, { code });
 
-export async function sendWelcomeEmail(user, role) {
-    const templateName = role === 'reviewer' ? 'welcomeReviewer' : 'welcomeOwner';
-    return sendEmail(templateName, user.email, { name: user.name });
-}
+export const sendWelcomeEmail = (user, role) => 
+    sendEmail(role === 'reviewer' ? 'welcomeReviewer' : 'welcomeOwner', user.email, { name: user.name });
 
-export async function sendApplicationReceivedEmail(ownerEmail, data) {
-    return sendEmail('applicationReceived', ownerEmail, data);
-}
+export const sendApplicationReceivedEmail = (ownerEmail, data) => 
+    sendEmail('applicationReceived', ownerEmail, data);
 
-export async function sendApplicationApprovedEmail(reviewerEmail, data) {
-    return sendEmail('applicationApproved', reviewerEmail, data);
-}
+export const sendApplicationApprovedEmail = (reviewerEmail, data) => 
+    sendEmail('applicationApproved', reviewerEmail, data);
 
-export async function sendApplicationRejectedEmail(reviewerEmail, data) {
-    return sendEmail('applicationRejected', reviewerEmail, data);
-}
+export const sendApplicationRejectedEmail = (reviewerEmail, data) => 
+    sendEmail('applicationRejected', reviewerEmail, data);
 
-export async function sendProjectSubmittedEmail(project) {
-    return sendEmail('projectSubmitted', project.ownerEmail, {
+export const sendProjectSubmittedEmail = (project) => 
+    sendEmail('projectSubmitted', project.ownerEmail, {
         ownerName: project.ownerName,
         projectTitle: project.title
     });
-}
 
-export async function sendReviewCompleteEmail(project, feedback, reviewer) {
-    return sendEmail('reviewComplete', project.ownerEmail, {
+export const sendReviewCompleteEmail = (project, feedback, reviewer) => 
+    sendEmail('reviewComplete', project.ownerEmail, {
         ownerName: project.ownerName,
         reviewerName: reviewer.username,
         projectTitle: project.title
     });
-}
 
-export async function sendRatingReceivedEmail(reviewer, feedback, project) {
-    return sendEmail('ratingReceived', reviewer.email, {
+export const sendRatingReceivedEmail = (reviewer, feedback, project) => 
+    sendEmail('ratingReceived', reviewer.email, {
         reviewerName: reviewer.username,
         projectTitle: project.title,
         rating: feedback.ownerRating,
         xpAwarded: feedback.xpAwarded
     });
-}
-
-// Placeholder - not used
-export async function sendReviewAssignedEmail() {
-    console.log('📧 sendReviewAssignedEmail called (placeholder)');
-    return { success: true };
-}
-
-export async function sendFeedbackSubmittedEmail() {
-    console.log('📧 sendFeedbackSubmittedEmail called (placeholder)');
-    return { success: true };
-}

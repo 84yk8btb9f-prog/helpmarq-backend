@@ -33,12 +33,12 @@ await new Promise((resolve) => {
 
 console.log('✓ MongoDB connection ready');
 
-// ✅ FIX: CORS configuration with correct URLs
+// ✅ FIX: Correct CORS configuration - ONLY actual frontend domain
 const corsOptions = {
     origin: NODE_ENV === 'production' 
         ? [
             'https://helpmarq-frontend.vercel.app',
-            'https://helpmarq.vercel.app'
+            // ❌ REMOVED: Non-existent helpmarq.vercel.app
           ]
         : [
             'http://localhost:8080', 
@@ -46,9 +46,11 @@ const corsOptions = {
             'http://localhost:5173', 
             'http://127.0.0.1:5173'
           ],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    credentials: true, // ✅ CRITICAL for cookies
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['set-cookie'], // ✅ Allow frontend to see cookies
+    maxAge: 86400 // Cache preflight requests for 24 hours
 };
 
 app.use(cors(corsOptions));
@@ -71,7 +73,7 @@ if (NODE_ENV === 'development') {
     });
 }
 
-// ✅ FIX: Health check that shows all critical info
+// ✅ Health check with all critical info
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
@@ -79,7 +81,9 @@ app.get('/health', (req, res) => {
         port: PORT,
         timestamp: new Date().toISOString(),
         mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-        frontendUrl: process.env.FRONTEND_URL
+        frontendUrl: NODE_ENV === 'production' 
+            ? 'https://helpmarq-frontend.vercel.app'
+            : 'http://localhost:8080'
     });
 });
 
@@ -202,7 +206,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 HelpMarq API running on port ${PORT}`);
     console.log(`📊 Environment: ${NODE_ENV}`);
     console.log(`🔐 Better Auth configured`);
-    console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL}`);
+    console.log(`🌐 Frontend URL: ${NODE_ENV === 'production' ? 'https://helpmarq-frontend.vercel.app' : 'http://localhost:8080'}`);
     
     // Start cron jobs
     import('./services/cronJobs.js').then(({ startCronJobs }) => {

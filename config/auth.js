@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 const auth = betterAuth({
     database: mongodbAdapter(mongoose.connection),
     
-    // ✅ FIX: Base URL for production
+    // ✅ FIX: Correct base URL for production
     baseURL: process.env.NODE_ENV === 'production' 
         ? "https://helpmarq-backend.onrender.com"
         : "http://localhost:3000",
@@ -52,7 +52,7 @@ const auth = betterAuth({
         expiresIn: 10 * 60 // 10 minutes
     },
     
-    // ✅ FIX: Advanced session configuration for cross-domain
+    // ✅ FIX: Session configuration with proper cookie settings
     session: {
         cookieCache: {
             enabled: true,
@@ -63,24 +63,25 @@ const auth = betterAuth({
         cookieName: "helpmarq_session",
     },
     
-    // ✅ FIX: Advanced options for cross-domain cookies
+    // ✅ FIX: Critical cookie options for cross-origin
     advanced: {
         cookieOptions: {
             sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-            secure: process.env.NODE_ENV === 'production',
+            secure: process.env.NODE_ENV === 'production', // MUST be true in production for sameSite: none
             httpOnly: true,
             path: '/',
+            // ✅ FIX: Don't set domain - let browser handle it
+            // Setting domain can cause issues with Render/Vercel
         }
     },
     
-    // ✅ FIXED: Correct trustedOrigins for production
+    // ✅ FIX: Correct trustedOrigins - ONLY your actual frontend
     trustedOrigins: process.env.NODE_ENV === 'production'
         ? [
             "https://helpmarq-frontend.vercel.app",
-            "https://www.sapavault.com",
-            "https://sapavault.com"
+            // ❌ REMOVED: sapavault.com entries (wrong domains)
           ]
-        : ["http://localhost:8080", "http://127.0.0.1:8080"]
+        : ["http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:5173"]
 });
 
 export default auth;
