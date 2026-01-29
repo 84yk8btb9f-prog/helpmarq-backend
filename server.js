@@ -27,14 +27,14 @@ await new Promise((resolve) => {
 
 console.log('✓ MongoDB connection ready');
 
-// CORS configuration
+// ✅ FIXED: CORS configuration with proper production URLs
 const corsOptions = {
     origin: NODE_ENV === 'production' 
-        ? ['https://helpmarq.vercel.app', 'https://www.helpmarq.com', 'https://www.sapavault.com', 'https://sapavault.com']
+        ? ['https://helpmarq-frontend.vercel.app', 'https://www.sapavault.com', 'https://sapavault.com']
         : ['http://localhost:8080', 'http://127.0.0.1:8080', 'http://localhost:5173', 'http://127.0.0.1:5173'],
     credentials: true,
-methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-allowedHeaders: ['Content-Type', 'Authorization']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 };
 
 app.use(cors(corsOptions));
@@ -67,41 +67,22 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Root route
+// ✅ FIXED: Root route - critical for Render deployment
 app.get('/', (req, res) => {
     res.json({
         message: 'HelpMarq API - Expert insights. Accessible pricing.',
         version: '2.0',
         status: 'Running',
-        environment: NODE_ENV
+        environment: NODE_ENV,
+        endpoints: {
+            health: '/health',
+            api: '/api'
+        }
     });
 });
 
-// Better Auth - FIXED with proper response handling
+// Better Auth
 app.use('/api/auth/', toNodeHandler(auth));
-
-// ✅ ADD: Welcome email trigger after signup
-app.post('/api/auth/sign-up/email', async (req, res, next) => {
-    try {
-        // Let Better Auth handle the signup first
-        await next();
-        
-        // Then send welcome email
-        const { email, name } = req.body;
-        if (email && name) {
-            try {
-                const { sendWelcomeEmail } = await import('./services/emailService.js');
-                await sendWelcomeEmail({ email, name }, 'owner');
-                console.log('✓ Signup welcome email sent to:', email);
-            } catch (emailError) {
-                console.error('❌ Signup email failed (non-blocking):', emailError);
-            }
-        }
-    } catch (error) {
-        console.error('Signup error:', error);
-        throw error;
-    }
-});
 
 // Import routes
 import authRouter from './routes/auth.js';
@@ -112,21 +93,6 @@ import feedbackRouter from './routes/feedback.js';
 import statsRouter from './routes/stats.js';
 import notificationsRouter from './routes/notifications.js';
 
-app.get('/api/test-email', async (req, res) => {
-    try {
-        const { sendWelcomeEmail } = await import('./services/emailService.js');
-        await sendWelcomeEmail({ 
-            email: 'helpmarq@sapavault.com', 
-            name: 'Test User' 
-        }, 'owner');
-        res.json({ success: true, message: 'Test email sent to helpmarq@sapavault.com' });
-    } catch (error) {
-        console.error('Test email error:', error);
-        res.json({ success: false, error: error.message });
-    }
-});
-
-
 // Mount API routes
 app.use('/api/user', authRouter);
 app.use('/api/projects', projectsRouter);
@@ -136,77 +102,7 @@ app.use('/api/feedback', feedbackRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/notifications', notificationsRouter);
 
-// ✅ ADD THIS DEBUG ENDPOINT HERE (before 404 handler)
-app.get('/api/debug/check-user-schema', async (req, res) => {
-    try {
-        // List all collections
-        const collections = await mongoose.connection.db.listCollections().toArray();
-        console.log('📊 All collections:', collections.map(c => c.name));
-        
-        // Find user-related collection
-        const userCollection = collections.find(c => 
-            c.name.toLowerCase().includes('user')
-        );
-        
-        if (!userCollection) {
-            return res.json({ 
-                success: false,
-                error: 'No user collection found',
-                allCollections: collections.map(c => c.name)
-            });
-        }
-        
-        // Get one sample user to see structure
-        const sampleUser = await mongoose.connection.db
-            .collection(userCollection.name)
-            .findOne({});
-        
-        res.json({
-            success: true,
-            collectionName: userCollection.name,
-            fields: sampleUser ? Object.keys(sampleUser) : [],
-            sampleUserExample: sampleUser ? {
-                _id: sampleUser._id,
-                email: sampleUser.email,
-                emailVerified: sampleUser.emailVerified,
-                createdAt: sampleUser.createdAt,
-                // Show structure without exposing sensitive data
-                hasPassword: !!sampleUser.password,
-                allFields: Object.keys(sampleUser)
-            } : null
-        });
-        
-    } catch (error) {
-        console.error('Debug endpoint error:', error);
-        res.status(500).json({ 
-            success: false,
-            error: error.message 
-        });
-    }
-});
-
-// TEST EMAIL - Remove after testing
-app.get('/api/test-email', async (req, res) => {
-    try {
-        const { sendVerificationEmail } = await import('./services/emailService.js');
-        
-        // CHANGE THIS to your email:
-        const testEmail = 'your-email@example.com';
-        const testUrl = 'http://localhost:8080/test';
-        
-        console.log('🧪 Testing email...');
-        const result = await sendVerificationEmail(testEmail, testUrl);
-        
-        res.json({
-            success: result.success,
-            message: result.success ? 'Check your inbox!' : 'Failed',
-            error: result.error
-        });
-    } catch (error) {
-        res.json({ success: false, error: error.message });
-    }
-});
-
+// OTP verification endpoint
 app.post('/api/verify-otp', async (req, res) => {
     try {
         const { email, code } = req.body;
@@ -220,7 +116,6 @@ app.post('/api/verify-otp', async (req, res) => {
         
         const OTP = (await import('./models/OTP.js')).default;
         
-        // Find valid OTP
         const otpRecord = await OTP.findOne({
             email: email.toLowerCase(),
             code: code,
@@ -235,11 +130,9 @@ app.post('/api/verify-otp', async (req, res) => {
             });
         }
         
-        // Mark OTP as verified
         otpRecord.verified = true;
         await otpRecord.save();
         
-        // Update user email verification in Better Auth collection
         await mongoose.connection.db.collection('user').updateOne(
             { email: email.toLowerCase() },
             { $set: { emailVerified: true } }
@@ -265,7 +158,8 @@ app.post('/api/verify-otp', async (req, res) => {
 app.use((req, res) => {
     res.status(404).json({
         success: false,
-        error: 'Route not found'
+        error: 'Route not found',
+        path: req.path
     });
 });
 
@@ -283,14 +177,14 @@ app.use((err, req, res, next) => {
     });
 });
 
-
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 HelpMarq API running on port ${PORT}`);
     console.log(`📊 Environment: ${NODE_ENV}`);
     console.log(`🔐 Better Auth configured`);
+    console.log(`🌐 CORS origins:`, corsOptions.origin);
     
-    // ✅ START CRON JOBS
+    // Start cron jobs
     import('./services/cronJobs.js').then(({ startCronJobs }) => {
         startCronJobs();
     });
@@ -307,17 +201,4 @@ process.on('SIGINT', async () => {
     console.log('SIGINT received, shutting down gracefully');
     await mongoose.connection.close();
     process.exit(0);
-});
-// TEST EMAIL ENDPOINT (remove after testing)
-app.get('/api/test-email', async (req, res) => {
-    try {
-        const { sendWelcomeEmail } = await import('./services/emailService.js');
-        await sendWelcomeEmail({ 
-            email: 'helpmarq@sapavault.com', 
-            name: 'Test User' 
-        }, 'owner');
-        res.json({ success: true, message: 'Test email sent' });
-    } catch (error) {
-        res.json({ success: false, error: error.message });
-    }
 });
