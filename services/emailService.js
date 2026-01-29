@@ -7,44 +7,109 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // EMAIL TEMPLATES
 // ============================================
 
-
 const emailTemplates = {
-    
-    otp: (data) => ({
-        subject: "Your HelpMarq verification code",
-        html: `
+    // 1. OTP VERIFICATION EMAIL
+    otpVerification: (data) => `
 <!DOCTYPE html>
-<html>
-<body style="margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F9FAFB;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background: #F9FAFB; padding: 40px 20px;">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email - HelpMarq</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background: white; border-radius: 12px; overflow: hidden;">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                    <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #2563EB 0%, #8B5CF6 100%); padding: 32px; text-align: center;">
-                            <h1 style="margin: 0; font-size: 32px; color: white;">helpmarq</h1>
-                            <p style="margin: 8px 0 0 0; font-size: 14px; color: white; opacity: 0.9;">Expert insights. Accessible pricing.</p>
+                        <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
+                    
+                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
-                            <h2 style="margin: 0 0 16px 0; font-size: 24px; color: #1F2937;">Your verification code</h2>
-                            <p style="margin: 0 0 24px 0; font-size: 16px; color: #4B5563;">Enter this code to verify your email:</p>
-                            <div style="background: #1F2937; padding: 24px; border-radius: 12px; text-align: center; margin: 24px 0;">
-                                <div style="font-size: 48px; font-weight: 700; color: #10B981; letter-spacing: 8px; font-family: monospace;">
-                                    ${data.code}
-                                </div>
+                            <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #1C1C1E;">Verify Your Email</h2>
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #8E8E93;">Enter this verification code to complete your registration:</p>
+                            
+                            <!-- OTP Code -->
+                            <div style="background-color: #F2F2F7; border-radius: 12px; padding: 24px; text-align: center; margin: 0 0 24px;">
+                                <p style="margin: 0 0 8px; font-size: 14px; color: #8E8E93; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Your Code</p>
+                                <p style="margin: 0; font-size: 48px; font-weight: 700; color: #2C5EF0; letter-spacing: 8px; font-family: 'Courier New', monospace;">${data.code}</p>
                             </div>
-                            <div style="background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 16px; border-radius: 8px; margin: 24px 0;">
-                                <p style="margin: 0; color: #92400E; font-size: 14px;">⏰ This code expires in 10 minutes</p>
+                            
+                            <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.6; color: #8E8E93;">This code will expire in <strong style="color: #1C1C1E;">10 minutes</strong>.</p>
+                            <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #8E8E93;">If you didn't request this code, please ignore this email.</p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
+                            <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+    `,
+
+    // 2. WELCOME PROJECT OWNER EMAIL
+    welcomeOwner: (data) => `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to HelpMarq</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #1C1C1E;">Welcome, ${data.name}! 👋</h2>
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #8E8E93;">Your account has been created successfully. You're now ready to submit projects and receive multi-perspective feedback from our trusted reviewer community.</p>
+                            
+                            <div style="background-color: #F2F2F7; border-radius: 12px; padding: 24px; margin: 0 0 24px;">
+                                <h3 style="margin: 0 0 16px; font-size: 18px; font-weight: 700; color: #1C1C1E;">What's Next?</h3>
+                                <ul style="margin: 0; padding-left: 20px; color: #8E8E93; line-height: 1.8;">
+                                    <li><strong style="color: #1C1C1E;">Submit Your First Project</strong> - Upload your work and set a deadline</li>
+                                    <li><strong style="color: #1C1C1E;">Select Reviewers</strong> - Choose from expert, mid-level, or user perspectives</li>
+                                    <li><strong style="color: #1C1C1E;">Receive Feedback</strong> - Get actionable insights to improve your project</li>
+                                </ul>
                             </div>
+                            
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td align="center">
+                                        <a href="https://helpmarq.com/dashboard" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Go to Dashboard</a>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
+                    
+                    <!-- Footer -->
                     <tr>
-                        <td style="background: #F9FAFB; padding: 24px; text-align: center; border-top: 1px solid #E5E7EB;">
-                            <p style="margin: 0; font-size: 13px; color: #6B7280;">
-                                <strong>helpmarq</strong> • Expert insights. Accessible pricing.
-                            </p>
+                        <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
+                            <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -53,36 +118,59 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-        `
-    }),
-    
-    welcomeOwner: (data) => ({
-        subject: "Welcome to helpmarq",
-        html: `
+    `,
+
+    // 3. WELCOME REVIEWER EMAIL
+    welcomeReviewer: (data) => `
 <!DOCTYPE html>
-<html>
-<body style="margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F9FAFB;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background: #F9FAFB; padding: 40px 20px;">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to HelpMarq</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background: white; border-radius: 12px; overflow: hidden;">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                    <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #2563EB 0%, #8B5CF6 100%); padding: 32px 40px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 8px;">helpmarq</div>
-                            <div style="font-size: 14px; color: white; opacity: 0.9;">Expert insights. Accessible pricing.</div>
+                        <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
+                    
+                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
-                            <h1 style="font-size: 24px; font-weight: 700; color: #1F2937; margin: 0 0 16px 0;">Welcome to helpmarq 👋</h1>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Hi ${data.name},</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Thanks for joining helpmarq. You're now part of a platform that turns uncertainty into confident action through verified, multi-perspective feedback.</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0;">— The helpmarq team</p>
+                            <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #1C1C1E;">Welcome, ${data.name}! 🌟</h2>
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #8E8E93;">Your reviewer profile has been created successfully. Start earning XP by providing valuable feedback to project owners.</p>
+                            
+                            <div style="background-color: #F2F2F7; border-radius: 12px; padding: 24px; margin: 0 0 24px;">
+                                <h3 style="margin: 0 0 16px; font-size: 18px; font-weight: 700; color: #1C1C1E;">How It Works</h3>
+                                <ul style="margin: 0; padding-left: 20px; color: #8E8E93; line-height: 1.8;">
+                                    <li><strong style="color: #1C1C1E;">Browse Available Projects</strong> - Find projects matching your expertise</li>
+                                    <li><strong style="color: #1C1C1E;">Apply to Review</strong> - Submit applications for projects you're interested in</li>
+                                    <li><strong style="color: #1C1C1E;">Provide Feedback</strong> - Share your insights and earn XP</li>
+                                    <li><strong style="color: #1C1C1E;">Build Your Reputation</strong> - Higher ratings unlock more opportunities</li>
+                                </ul>
+                            </div>
+                            
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td align="center">
+                                        <a href="https://helpmarq.com/apply" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Start Reviewing</a>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
+                    
+                    <!-- Footer -->
                     <tr>
-                        <td style="background: #F9FAFB; border-top: 1px solid #E5E7EB; padding: 32px 40px; text-align: center;">
-                            <p style="margin: 0; font-size: 13px; color: #6B7280;"><strong>helpmarq</strong> • Expert insights. Accessible pricing.</p>
+                        <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
+                            <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -91,36 +179,64 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-        `
-    }),
-    
-    welcomeReviewer: (data) => ({
-        subject: "You're approved — Start reviewing",
-        html: `
+    `,
+
+    // 4. APPLICATION RECEIVED (Owner notification)
+    applicationReceived: (data) => `
 <!DOCTYPE html>
-<html>
-<body style="margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F9FAFB;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background: #F9FAFB; padding: 40px 20px;">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Application Received</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background: white; border-radius: 12px; overflow: hidden;">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                    <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #2563EB 0%, #8B5CF6 100%); padding: 32px 40px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 8px;">helpmarq</div>
-                            <div style="font-size: 14px; color: white; opacity: 0.9;">Expert insights. Accessible pricing.</div>
+                        <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
+                    
+                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
-                            <h1 style="font-size: 24px; font-weight: 700; color: #1F2937; margin: 0 0 16px 0;">You're approved! ✅</h1>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Hi ${data.name},</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Congratulations! Your reviewer profile has been approved. You can now start monetizing your expertise on helpmarq.</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0;">— The helpmarq team</p>
+                            <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #1C1C1E;">New Application Received 📬</h2>
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #8E8E93;">Hello ${data.ownerName}, a reviewer has applied to review your project.</p>
+                            
+                            <div style="background-color: #F2F2F7; border-radius: 12px; padding: 24px; margin: 0 0 24px;">
+                                <table width="100%" cellpadding="0" cellspacing="0">
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #8E8E93; font-size: 14px;">Project:</td>
+                                        <td style="padding: 8px 0; color: #1C1C1E; font-weight: 600; text-align: right;">${data.projectTitle}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #8E8E93; font-size: 14px;">Reviewer:</td>
+                                        <td style="padding: 8px 0; color: #1C1C1E; font-weight: 600; text-align: right;">${data.reviewerName}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #8E8E93;">Review their profile and decide whether to approve or reject their application.</p>
+                            
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td align="center">
+                                        <a href="https://helpmarq.com/applicants" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Application</a>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
+                    
+                    <!-- Footer -->
                     <tr>
-                        <td style="background: #F9FAFB; border-top: 1px solid #E5E7EB; padding: 32px 40px; text-align: center;">
-                            <p style="margin: 0; font-size: 13px; color: #6B7280;"><strong>helpmarq</strong> • Expert insights. Accessible pricing.</p>
+                        <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
+                            <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -129,36 +245,60 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-        `
-    }),
-    
-    applicationReceived: (data) => ({
-        subject: `New application for "${data.projectTitle}"`,
-        html: `
+    `,
+
+    // 5. APPLICATION APPROVED (Reviewer notification)
+    applicationApproved: (data) => `
 <!DOCTYPE html>
-<html>
-<body style="margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F9FAFB;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background: #F9FAFB; padding: 40px 20px;">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Approved</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background: white; border-radius: 12px; overflow: hidden;">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                    <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #2563EB 0%, #8B5CF6 100%); padding: 32px 40px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 8px;">helpmarq</div>
-                            <div style="font-size: 14px; color: white; opacity: 0.9;">Expert insights. Accessible pricing.</div>
+                        <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
+                    
+                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
-                            <h1 style="font-size: 24px; font-weight: 700; color: #1F2937; margin: 0 0 16px 0;">New Applicant! 📋</h1>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Hi ${data.ownerName},</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;"><strong>${data.reviewerName}</strong> applied to review your project <strong>"${data.projectTitle}"</strong>.</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0;">Login to review their application!</p>
+                            <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #34C759;">Congratulations! Application Approved ✅</h2>
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #8E8E93;">Hello ${data.reviewerName}, your application has been approved.</p>
+                            
+                            <div style="background-color: #F2F2F7; border-radius: 12px; padding: 24px; margin: 0 0 24px;">
+                                <table width="100%" cellpadding="0" cellspacing="0">
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #8E8E93; font-size: 14px;">Project:</td>
+                                        <td style="padding: 8px 0; color: #1C1C1E; font-weight: 600; text-align: right;">${data.projectTitle}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #8E8E93;">You can now access the full project details and submit your feedback.</p>
+                            
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td align="center">
+                                        <a href="https://helpmarq.com/apply" style="display: inline-block; padding: 14px 32px; background-color: #34C759; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Project</a>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
+                    
+                    <!-- Footer -->
                     <tr>
-                        <td style="background: #F9FAFB; border-top: 1px solid #E5E7EB; padding: 32px 40px; text-align: center;">
-                            <p style="margin: 0; font-size: 13px; color: #6B7280;"><strong>helpmarq</strong> • Expert insights. Accessible pricing.</p>
+                        <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
+                            <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -167,36 +307,68 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-        `
-    }),
-    
-    applicationApproved: (data) => ({
-        subject: `Application approved for "${data.projectTitle}"`,
-        html: `
+    `,
+
+    // 6. APPLICATION REJECTED (Reviewer notification)
+    applicationRejected: (data) => `
 <!DOCTYPE html>
-<html>
-<body style="margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F9FAFB;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background: #F9FAFB; padding: 40px 20px;">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Status Update</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background: white; border-radius: 12px; overflow: hidden;">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                    <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #2563EB 0%, #8B5CF6 100%); padding: 32px 40px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 8px;">helpmarq</div>
-                            <div style="font-size: 14px; color: white; opacity: 0.9;">Expert insights. Accessible pricing.</div>
+                        <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
+                    
+                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
-                            <h1 style="font-size: 24px; font-weight: 700; color: #1F2937; margin: 0 0 16px 0;">Application Approved! ✅</h1>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Hi ${data.reviewerName},</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Great news! Your application has been approved for <strong>"${data.projectTitle}"</strong>.</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0;">Login to start your review and earn XP!</p>
+                            <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #1C1C1E;">Application Not Selected</h2>
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #8E8E93;">Hello ${data.reviewerName}, thank you for your interest in reviewing this project.</p>
+                            
+                            <div style="background-color: #F2F2F7; border-radius: 12px; padding: 24px; margin: 0 0 24px;">
+                                <table width="100%" cellpadding="0" cellspacing="0">
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #8E8E93; font-size: 14px;">Project:</td>
+                                        <td style="padding: 8px 0; color: #1C1C1E; font-weight: 600; text-align: right;">${data.projectTitle}</td>
+                                    </tr>
+                                    ${data.reason ? `
+                                    <tr>
+                                        <td colspan="2" style="padding: 16px 0 0; color: #8E8E93; font-size: 14px; border-top: 1px solid #E5E5EA; margin-top: 16px;">
+                                            <strong style="display: block; color: #1C1C1E; margin-bottom: 8px;">Feedback from Owner:</strong>
+                                            ${data.reason}
+                                        </td>
+                                    </tr>
+                                    ` : ''}
+                                </table>
+                            </div>
+                            
+                            <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #8E8E93;">Don't be discouraged! Keep building your profile and applying to projects that match your expertise.</p>
+                            
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td align="center">
+                                        <a href="https://helpmarq.com/apply" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Browse More Projects</a>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
+                    
+                    <!-- Footer -->
                     <tr>
-                        <td style="background: #F9FAFB; border-top: 1px solid #E5E7EB; padding: 32px 40px; text-align: center;">
-                            <p style="margin: 0; font-size: 13px; color: #6B7280;"><strong>helpmarq</strong> • Expert insights. Accessible pricing.</p>
+                        <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
+                            <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -205,36 +377,60 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-        `
-    }),
-    
-    applicationRejected: (data) => ({
-        subject: "Application update",
-        html: `
+    `,
+
+    // 7. PROJECT SUBMITTED (Owner confirmation)
+    projectSubmitted: (data) => `
 <!DOCTYPE html>
-<html>
-<body style="margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F9FAFB;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background: #F9FAFB; padding: 40px 20px;">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Submitted Successfully</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background: white; border-radius: 12px; overflow: hidden;">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                    <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #2563EB 0%, #8B5CF6 100%); padding: 32px 40px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 8px;">helpmarq</div>
-                            <div style="font-size: 14px; color: white; opacity: 0.9;">Expert insights. Accessible pricing.</div>
+                        <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
+                    
+                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
-                            <h1 style="font-size: 24px; font-weight: 700; color: #1F2937; margin: 0 0 16px 0;">Application Update</h1>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Hi ${data.reviewerName},</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Thank you for your interest in reviewing <strong>"${data.projectTitle}"</strong>.</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0;">The project owner has decided to move forward with other reviewers for this project. Keep applying!</p>
+                            <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #34C759;">Project Submitted Successfully! 🎉</h2>
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #8E8E93;">Hello ${data.ownerName}, your project has been submitted and is now live on HelpMarq.</p>
+                            
+                            <div style="background-color: #F2F2F7; border-radius: 12px; padding: 24px; margin: 0 0 24px;">
+                                <table width="100%" cellpadding="0" cellspacing="0">
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #8E8E93; font-size: 14px;">Project:</td>
+                                        <td style="padding: 8px 0; color: #1C1C1E; font-weight: 600; text-align: right;">${data.projectTitle}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #8E8E93;">Reviewers can now discover and apply to review your project. You'll receive notifications when applications come in.</p>
+                            
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td align="center">
+                                        <a href="https://helpmarq.com/applicants" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Applications</a>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
+                    
+                    <!-- Footer -->
                     <tr>
-                        <td style="background: #F9FAFB; border-top: 1px solid #E5E7EB; padding: 32px 40px; text-align: center;">
-                            <p style="margin: 0; font-size: 13px; color: #6B7280;"><strong>helpmarq</strong> • Expert insights. Accessible pricing.</p>
+                        <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
+                            <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -243,36 +439,64 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-        `
-    }),
-    
-    projectSubmitted: (data) => ({
-        subject: "Project uploaded successfully",
-        html: `
+    `,
+
+    // 8. REVIEW COMPLETE (Owner notification)
+    reviewComplete: (data) => `
 <!DOCTYPE html>
-<html>
-<body style="margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F9FAFB;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background: #F9FAFB; padding: 40px 20px;">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Feedback Received</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background: white; border-radius: 12px; overflow: hidden;">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                    <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #2563EB 0%, #8B5CF6 100%); padding: 32px 40px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 8px;">helpmarq</div>
-                            <div style="font-size: 14px; color: white; opacity: 0.9;">Expert insights. Accessible pricing.</div>
+                        <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
+                    
+                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
-                            <h1 style="font-size: 24px; font-weight: 700; color: #1F2937; margin: 0 0 16px 0;">Project Uploaded! 🎉</h1>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Hi ${data.ownerName},</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Your project <strong>"${data.projectTitle}"</strong> is now live and reviewers can apply!</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0;">— The helpmarq team</p>
+                            <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #1C1C1E;">New Feedback Received! 📝</h2>
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #8E8E93;">Hello ${data.ownerName}, ${data.reviewerName} has submitted feedback for your project.</p>
+                            
+                            <div style="background-color: #F2F2F7; border-radius: 12px; padding: 24px; margin: 0 0 24px;">
+                                <table width="100%" cellpadding="0" cellspacing="0">
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #8E8E93; font-size: 14px;">Project:</td>
+                                        <td style="padding: 8px 0; color: #1C1C1E; font-weight: 600; text-align: right;">${data.projectTitle}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #8E8E93; font-size: 14px;">Reviewer:</td>
+                                        <td style="padding: 8px 0; color: #1C1C1E; font-weight: 600; text-align: right;">${data.reviewerName}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #8E8E93;">View the feedback now and rate the reviewer's contribution.</p>
+                            
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td align="center">
+                                        <a href="https://helpmarq.com/feedback" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Feedback</a>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
+                    
+                    <!-- Footer -->
                     <tr>
-                        <td style="background: #F9FAFB; border-top: 1px solid #E5E7EB; padding: 32px 40px; text-align: center;">
-                            <p style="margin: 0; font-size: 13px; color: #6B7280;"><strong>helpmarq</strong> • Expert insights. Accessible pricing.</p>
+                        <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
+                            <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -281,36 +505,68 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-        `
-    }),
-    
-    reviewComplete: (data) => ({
-        subject: `New feedback for "${data.projectTitle}"`,
-        html: `
+    `,
+
+    // 9. RATING RECEIVED (Reviewer notification)
+    ratingReceived: (data) => `
 <!DOCTYPE html>
-<html>
-<body style="margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F9FAFB;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background: #F9FAFB; padding: 40px 20px;">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You Received a Rating!</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F2F2F7;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F2F2F7; padding: 40px 20px;">
         <tr>
             <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background: white; border-radius: 12px; overflow: hidden;">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                    <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #2563EB 0%, #8B5CF6 100%); padding: 32px 40px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 8px;">helpmarq</div>
-                            <div style="font-size: 14px; color: white; opacity: 0.9;">Expert insights. Accessible pricing.</div>
+                        <td style="padding: 40px 40px 24px; text-align: center; border-bottom: 1px solid #F2F2F7;">
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #2C5EF0;">HelpMarq</h1>
                         </td>
                     </tr>
+                    
+                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px;">
-                            <h1 style="font-size: 24px; font-weight: 700; color: #1F2937; margin: 0 0 16px 0;">New Feedback! 💬</h1>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Hi ${data.ownerName},</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;"><strong>${data.reviewerName}</strong> submitted feedback for <strong>"${data.projectTitle}"</strong>.</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0;">Login to review and rate their feedback!</p>
+                            <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #34C759;">You Received a Rating! ⭐</h2>
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #8E8E93;">Hello ${data.reviewerName}, your feedback has been rated.</p>
+                            
+                            <div style="background-color: #F2F2F7; border-radius: 12px; padding: 24px; margin: 0 0 24px;">
+                                <table width="100%" cellpadding="0" cellspacing="0">
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #8E8E93; font-size: 14px;">Project:</td>
+                                        <td style="padding: 8px 0; color: #1C1C1E; font-weight: 600; text-align: right;">${data.projectTitle}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #8E8E93; font-size: 14px;">Rating:</td>
+                                        <td style="padding: 8px 0; color: #FFB800; font-weight: 600; text-align: right; font-size: 18px;">${'⭐'.repeat(data.rating)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #8E8E93; font-size: 14px;">XP Earned:</td>
+                                        <td style="padding: 8px 0; color: #34C759; font-weight: 700; text-align: right; font-size: 18px;">+${data.xpAwarded} XP</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #8E8E93;">Great work! Keep providing valuable feedback to earn more XP and improve your rating.</p>
+                            
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td align="center">
+                                        <a href="https://helpmarq.com/profile" style="display: inline-block; padding: 14px 32px; background-color: #2C5EF0; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Profile</a>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
+                    
+                    <!-- Footer -->
                     <tr>
-                        <td style="background: #F9FAFB; border-top: 1px solid #E5E7EB; padding: 32px 40px; text-align: center;">
-                            <p style="margin: 0; font-size: 13px; color: #6B7280;"><strong>helpmarq</strong> • Expert insights. Accessible pricing.</p>
+                        <td style="padding: 24px 40px; background-color: #F2F2F7; border-radius: 0 0 16px 16px; text-align: center;">
+                            <p style="margin: 0; font-size: 12px; color: #8E8E93;">© 2026 HelpMarq. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -319,46 +575,7 @@ const emailTemplates = {
     </table>
 </body>
 </html>
-        `
-    }),
-    
-    ratingReceived: (data) => ({
-        subject: "You earned XP!",
-        html: `
-<!DOCTYPE html>
-<html>
-<body style="margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F9FAFB;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background: #F9FAFB; padding: 40px 20px;">
-        <tr>
-            <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background: white; border-radius: 12px; overflow: hidden;">
-                    <tr>
-                        <td style="background: linear-gradient(135deg, #2563EB 0%, #8B5CF6 100%); padding: 32px 40px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 8px;">helpmarq</div>
-                            <div style="font-size: 14px; color: white; opacity: 0.9;">Expert insights. Accessible pricing.</div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 40px;">
-                            <h1 style="font-size: 24px; font-weight: 700; color: #1F2937; margin: 0 0 16px 0;">You Earned XP! ⭐</h1>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Hi ${data.reviewerName},</p>
-                            <p style="font-size: 16px; color: #4B5563; line-height: 1.6; margin: 0 0 16px 0;">Your feedback for <strong>"${data.projectTitle}"</strong> was rated <strong>${data.rating} stars</strong>!</p>
-                            <p style="font-size: 32px; color: #10B981; font-weight: 700; margin: 16px 0; text-align: center;">+${data.xpAwarded} XP</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="background: #F9FAFB; border-top: 1px solid #E5E7EB; padding: 32px 40px; text-align: center;">
-                            <p style="margin: 0; font-size: 13px; color: #6B7280;"><strong>helpmarq</strong> • Expert insights. Accessible pricing.</p>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
-</body>
-</html>
-        `
-    })
+    `
 };
 
 // ============================================

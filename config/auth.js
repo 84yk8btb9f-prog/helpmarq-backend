@@ -1,5 +1,3 @@
-// backend/config/auth.js - FIXED VERSION FOR OTP
-
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import mongoose from 'mongoose';
@@ -50,8 +48,8 @@ const auth = betterAuth({
     },
     
     trustedOrigins: process.env.NODE_ENV === 'production'
-        ? ["https://helpmarq.vercel.app"]
-        : ["http://localhost:8080", "http://127.0.0.1:8080"]
+? ["https://sapavault.com", "https://www.sapavault.com"]
+: ["http://localhost:8080", "http://127.0.0.1:8080"]
 });
 
 export default auth;
