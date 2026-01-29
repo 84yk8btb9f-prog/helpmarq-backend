@@ -10,8 +10,14 @@ import { toNodeHandler } from "better-auth/node";
 
 const app = express();
 app.set('trust proxy', 1);
-const PORT = process.env.PORT || 3000;
+
+// ✅ FIX: Use Render's PORT or fallback to 10000
+const PORT = process.env.PORT || 10000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+
+console.log('🚀 Starting server...');
+console.log('📊 Environment:', NODE_ENV);
+console.log('🔌 Port:', PORT);
 
 // Connect to MongoDB FIRST
 await connectDB();
@@ -27,11 +33,19 @@ await new Promise((resolve) => {
 
 console.log('✓ MongoDB connection ready');
 
-// ✅ FIXED: CORS configuration with proper production URLs
+// ✅ FIX: CORS configuration with correct URLs
 const corsOptions = {
     origin: NODE_ENV === 'production' 
-        ? ['https://helpmarq-frontend.vercel.app', 'https://www.sapavault.com', 'https://sapavault.com']
-        : ['http://localhost:8080', 'http://127.0.0.1:8080', 'http://localhost:5173', 'http://127.0.0.1:5173'],
+        ? [
+            'https://helpmarq-frontend.vercel.app',
+            'https://helpmarq.vercel.app'
+          ]
+        : [
+            'http://localhost:8080', 
+            'http://127.0.0.1:8080', 
+            'http://localhost:5173', 
+            'http://127.0.0.1:5173'
+          ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -57,17 +71,19 @@ if (NODE_ENV === 'development') {
     });
 }
 
-// Health check
+// ✅ FIX: Health check that shows all critical info
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         environment: NODE_ENV,
+        port: PORT,
         timestamp: new Date().toISOString(),
-        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        frontendUrl: process.env.FRONTEND_URL
     });
 });
 
-// ✅ FIXED: Root route - critical for Render deployment
+// Root route
 app.get('/', (req, res) => {
     res.json({
         message: 'HelpMarq API - Expert insights. Accessible pricing.',
@@ -76,7 +92,11 @@ app.get('/', (req, res) => {
         environment: NODE_ENV,
         endpoints: {
             health: '/health',
-            api: '/api'
+            auth: '/api/auth/*',
+            projects: '/api/projects',
+            reviewers: '/api/reviewers',
+            applications: '/api/applications',
+            feedback: '/api/feedback'
         }
     });
 });
@@ -177,12 +197,12 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Start server
+// ✅ FIX: Bind to 0.0.0.0 for Render
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 HelpMarq API running on port ${PORT}`);
     console.log(`📊 Environment: ${NODE_ENV}`);
     console.log(`🔐 Better Auth configured`);
-    console.log(`🌐 CORS origins:`, corsOptions.origin);
+    console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL}`);
     
     // Start cron jobs
     import('./services/cronJobs.js').then(({ startCronJobs }) => {

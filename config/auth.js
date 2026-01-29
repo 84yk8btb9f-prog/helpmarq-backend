@@ -47,14 +47,16 @@ const auth = betterAuth({
         expiresIn: 10 * 60 // 10 minutes
     },
     
-    // ✅ FIXED: Correct trustedOrigins for production
+    // ✅ FIX: Correct trusted origins for production
     trustedOrigins: process.env.NODE_ENV === 'production'
         ? [
             "https://helpmarq-frontend.vercel.app",
-            "https://www.sapavault.com",
-            "https://sapavault.com"
+            "https://helpmarq.vercel.app"
           ]
-        : ["http://localhost:8080", "http://127.0.0.1:8080"]
+        : [
+            "http://localhost:8080", 
+            "http://127.0.0.1:8080"
+          ]
 });
 
 export default auth;
