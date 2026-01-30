@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 const auth = betterAuth({
     database: mongodbAdapter(mongoose.connection),
     
-    // ✅ FIX: Correct base URL for production
+    // ✅ CRITICAL: Use production URL for Render
     baseURL: process.env.NODE_ENV === 'production' 
         ? "https://helpmarq-backend.onrender.com"
         : "http://localhost:3000",
@@ -52,7 +52,7 @@ const auth = betterAuth({
         expiresIn: 10 * 60 // 10 minutes
     },
     
-    // ✅ FIX: Session configuration with proper cookie settings
+    // ✅ FIX: Session configuration
     session: {
         cookieCache: {
             enabled: true,
@@ -60,24 +60,34 @@ const auth = betterAuth({
         },
         expiresIn: 60 * 60 * 24 * 7, // 7 days
         updateAge: 60 * 60 * 24, // 1 day
-        cookieName: "helpmarq_session",
+        cookieName: "better_auth_session", // ✅ Changed from helpmarq_session
     },
     
-    // ✅ FIX: Critical cookie options for cross-origin
+    // ✅ CRITICAL: Cookie options for cross-origin (Vercel ↔ Render)
     advanced: {
-    cookieOptions: {
-        sameSite: 'lax', // Change from 'none' to 'lax'
-        secure: true,
-        httpOnly: true,
-        path: '/',
-    }
-},
+        cookieOptions: {
+            // ✅ MUST BE 'none' for cross-origin cookies
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            
+            // ✅ MUST BE true when sameSite is 'none' (HTTPS required)
+            secure: process.env.NODE_ENV === 'production',
+            
+            // ✅ HttpOnly prevents JavaScript access (security)
+            httpOnly: true,
+            
+            // ✅ Available on all paths
+            path: '/',
+            
+            // ✅ CRITICAL: Do NOT set domain
+            // Let browser handle domain automatically
+            // Setting domain can break cookies on Render/Vercel
+        }
+    },
     
-    // ✅ FIX: Correct trustedOrigins - ONLY your actual frontend
+    // ✅ CRITICAL: Only list your EXACT frontend domain
     trustedOrigins: process.env.NODE_ENV === 'production'
         ? [
             "https://helpmarq-frontend.vercel.app",
-            // ❌ REMOVED: sapavault.com entries (wrong domains)
           ]
         : ["http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:5173"]
 });
