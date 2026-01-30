@@ -9,9 +9,11 @@ import { startCronJobs } from './services/cronJobs.js';
 import { toNodeHandler } from "better-auth/node";
 
 const app = express();
+
+// ✅ CRITICAL FIX: Trust proxy for Render
 app.set('trust proxy', 1);
 
-// ✅ FIX: Use Render's PORT or fallback to 10000
+// ✅ FIX: Use Render's PORT or fallback
 const PORT = process.env.PORT || 10000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
@@ -19,61 +21,70 @@ console.log('🚀 Starting server...');
 console.log('📊 Environment:', NODE_ENV);
 console.log('🔌 Port:', PORT);
 
-// Connect to MongoDB FIRST
-await connectDB();
-
-// Wait for MongoDB connection
-await new Promise((resolve) => {
-    if (mongoose.connection.readyState === 1) {
-        resolve();
-    } else {
-        mongoose.connection.once('open', resolve);
-    }
-});
-
-console.log('✓ MongoDB connection ready');
-
-// ✅ FIX: Correct CORS configuration - ONLY actual frontend domain
+// ✅ CRITICAL FIX: Enhanced CORS configuration
 const corsOptions = {
-    origin: NODE_ENV === 'production' 
-        ? [
-            'https://helpmarq-frontend.vercel.app',
-            // ❌ REMOVED: Non-existent helpmarq.vercel.app
-          ]
-        : [
-            'http://localhost:8080', 
-            'http://127.0.0.1:8080', 
-            'http://localhost:5173', 
-            'http://127.0.0.1:5173'
-          ],
+    origin: function (origin, callback) {
+        // ✅ Allow requests with no origin (mobile apps, Postman, etc.)
+        if (!origin) return callback(null, true);
+        
+        const allowedOrigins = NODE_ENV === 'production' 
+            ? [
+                'https://helpmarq-frontend.vercel.app',
+                // Add www variant if needed
+                // 'https://www.helpmarq-frontend.vercel.app',
+              ]
+            : [
+                'http://localhost:8080',
+                'http://127.0.0.1:8080',
+                'http://localhost:5173',
+                'http://127.0.0.1:5173'
+              ];
+        
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.warn('⚠️  Blocked origin:', origin);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true, // ✅ CRITICAL for cookies
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
     exposedHeaders: ['set-cookie'], // ✅ Allow frontend to see cookies
-    maxAge: 86400 // Cache preflight requests for 24 hours
+    maxAge: 86400, // Cache preflight for 24 hours
+    optionsSuccessStatus: 200 // ✅ For legacy browsers
 };
 
+// ✅ FIX: Apply CORS before other middleware
 app.use(cors(corsOptions));
+
+// ✅ FIX: Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
 app.use(express.json());
 
 // Rate limiting
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 500,
-    message: 'Too many requests, please try again later.'
+    message: 'Too many requests, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
 });
 
 app.use('/api/', limiter);
 
-// Request logging in development
-if (NODE_ENV === 'development') {
-    app.use((req, res, next) => {
-        console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-        next();
-    });
-}
+// ✅ FIX: Enhanced request logging
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    if (NODE_ENV === 'development') {
+        console.log('Origin:', req.headers.origin);
+        console.log('Cookies:', req.headers.cookie);
+    }
+    next();
+});
 
-// ✅ Health check with all critical info
+// ✅ FIX: Enhanced health check
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
@@ -83,7 +94,11 @@ app.get('/health', (req, res) => {
         mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
         frontendUrl: NODE_ENV === 'production' 
             ? 'https://helpmarq-frontend.vercel.app'
-            : 'http://localhost:8080'
+            : 'http://localhost:8080',
+        corsEnabled: true,
+        trustedOrigins: NODE_ENV === 'production'
+            ? ['https://helpmarq-frontend.vercel.app']
+            : ['http://localhost:8080', 'http://localhost:5173']
     });
 });
 
@@ -105,7 +120,7 @@ app.get('/', (req, res) => {
     });
 });
 
-// Better Auth
+// ✅ CRITICAL FIX: Mount Better Auth BEFORE other routes
 app.use('/api/auth/', toNodeHandler(auth));
 
 // Import routes
@@ -201,28 +216,57 @@ app.use((err, req, res, next) => {
     });
 });
 
-// ✅ FIX: Bind to 0.0.0.0 for Render
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 HelpMarq API running on port ${PORT}`);
-    console.log(`📊 Environment: ${NODE_ENV}`);
-    console.log(`🔐 Better Auth configured`);
-    console.log(`🌐 Frontend URL: ${NODE_ENV === 'production' ? 'https://helpmarq-frontend.vercel.app' : 'http://localhost:8080'}`);
-    
-    // Start cron jobs
-    import('./services/cronJobs.js').then(({ startCronJobs }) => {
-        startCronJobs();
-    });
-});
+// ✅ CRITICAL FIX: Proper startup sequence
+async function startServer() {
+    try {
+        // 1. Connect to MongoDB FIRST
+        console.log('1️⃣  Connecting to MongoDB...');
+        await connectDB();
+        
+        // 2. Wait for connection to be ready
+        console.log('2️⃣  Waiting for MongoDB connection...');
+        await new Promise((resolve) => {
+            if (mongoose.connection.readyState === 1) {
+                resolve();
+            } else {
+                mongoose.connection.once('open', resolve);
+            }
+        });
+        
+        console.log('✅ MongoDB ready');
+        
+        // 3. Start the server
+        console.log('3️⃣  Starting HTTP server...');
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log('✅ Server started successfully!');
+            console.log(`🚀 HelpMarq API running on port ${PORT}`);
+            console.log(`📊 Environment: ${NODE_ENV}`);
+            console.log(`🔐 Better Auth configured`);
+            console.log(`🌐 Frontend URL: ${NODE_ENV === 'production' ? 'https://helpmarq-frontend.vercel.app' : 'http://localhost:8080'}`);
+            console.log(`🍪 CORS enabled with credentials`);
+            
+            // 4. Start cron jobs after server is running
+            console.log('4️⃣  Starting cron jobs...');
+            startCronJobs();
+            console.log('✅ Cron jobs started');
+        });
+        
+    } catch (error) {
+        console.error('❌ Server startup failed:', error);
+        process.exit(1);
+    }
+}
+
+// Start the server
+startServer();
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-    console.log('SIGTERM received, shutting down gracefully');
+const shutdown = async (signal) => {
+    console.log(`\n${signal} received, shutting down gracefully`);
     await mongoose.connection.close();
+    console.log('MongoDB connection closed');
     process.exit(0);
-});
+};
 
-process.on('SIGINT', async () => {
-    console.log('SIGINT received, shutting down gracefully');
-    await mongoose.connection.close();
-    process.exit(0);
-});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
