@@ -32,7 +32,7 @@ const corsOptions = {
             ? [
                 'https://helpmarq-frontend.vercel.app',
                 'https://helpmarq-frontend.vercel.app/',
-                /\\.vercel\\.app$/  // Allow all Vercel preview deployments
+                /\.vercel\.app$/  // Allow all Vercel preview deployments
               ]
             : [
                 'http://localhost:8080',

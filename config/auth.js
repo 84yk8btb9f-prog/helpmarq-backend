@@ -26,22 +26,20 @@ const auth = betterAuth({
         }
     },
     
-    // ✅ PRODUCTION: Secure cookie settings
-    advanced: {
-        cookiePrefix: "helpmarq",
-        crossSubDomainCookies: {
-            enabled: true
-        },
-        defaultCookieAttributes: {
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-            secure: process.env.NODE_ENV === 'production',
-            httpOnly: true,
-            path: '/',
-            domain: process.env.NODE_ENV === 'production' 
-                ? '.onrender.com' 
-                : undefined
-        }
+    // ✅ CRITICAL FIX: Remove domain restriction for cross-origin setup
+advanced: {
+    cookiePrefix: "helpmarq",
+    crossSubDomainCookies: {
+        enabled: false  // ← Changed to false (not same domain)
     },
+    defaultCookieAttributes: {
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        path: '/',
+        domain: undefined  // ← CRITICAL: Remove domain restriction
+    }
+},
     
     // ✅ PRODUCTION: Proper base URL
     baseURL: process.env.NODE_ENV === 'production'
