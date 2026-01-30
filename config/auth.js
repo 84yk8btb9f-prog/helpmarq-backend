@@ -65,24 +65,14 @@ const auth = betterAuth({
     
     // ✅ CRITICAL: Cookie options for cross-origin (Vercel ↔ Render)
     advanced: {
-        cookieOptions: {
-            // ✅ MUST BE 'none' for cross-origin cookies
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-            
-            // ✅ MUST BE true when sameSite is 'none' (HTTPS required)
-            secure: process.env.NODE_ENV === 'production',
-            
-            // ✅ HttpOnly prevents JavaScript access (security)
-            httpOnly: true,
-            
-            // ✅ Available on all paths
-            path: '/',
-            
-            // ✅ CRITICAL: Do NOT set domain
-            // Let browser handle domain automatically
-            // Setting domain can break cookies on Render/Vercel
-        }
-    },
+    cookieOptions: {
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        //                                                   ^^^^ Change to 'none'
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        path: '/',
+    }
+},
     
     // ✅ CRITICAL: Only list your EXACT frontend domain
     trustedOrigins: process.env.NODE_ENV === 'production'
