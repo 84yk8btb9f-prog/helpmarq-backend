@@ -14,18 +14,25 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 10000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-console.log('🚀 Starting server...');
+console.log('🚀 Starting HelpMarq server...');
 console.log('📊 Environment:', NODE_ENV);
 console.log('🔌 Port:', PORT);
+console.log('🌐 Frontend URL:', process.env.FRONTEND_URL);
+console.log('🔐 Auth Secret:', process.env.BETTER_AUTH_SECRET ? '✓ Set' : '✗ Missing');
+console.log('📧 Resend Key:', process.env.RESEND_API_KEY ? '✓ Set' : '✗ Missing');
+console.log('🗄️ MongoDB URI:', process.env.MONGODB_URI ? '✓ Set' : '✗ Missing');
 
 // ✅ CRITICAL FIX: Enhanced CORS configuration
 const corsOptions = {
     origin: function (origin, callback) {
+        // Allow requests with no origin (mobile apps, Postman, etc.)
         if (!origin) return callback(null, true);
         
         const allowedOrigins = NODE_ENV === 'production' 
             ? [
                 'https://helpmarq-frontend.vercel.app',
+                'https://helpmarq-frontend.vercel.app/',
+                /\\.vercel\\.app$/  // Allow all Vercel preview deployments
               ]
             : [
                 'http://localhost:8080',
@@ -34,28 +41,46 @@ const corsOptions = {
                 'http://127.0.0.1:5173'
               ];
         
-        if (allowedOrigins.includes(origin)) {
+        // Check if origin matches any allowed origin
+        const isAllowed = allowedOrigins.some(allowed => {
+            if (typeof allowed === 'string') {
+                return allowed === origin || allowed === origin + '/';
+            } else if (allowed instanceof RegExp) {
+                return allowed.test(origin);
+            }
+            return false;
+        });
+        
+        if (isAllowed) {
             callback(null, true);
         } else {
-            console.warn('⚠️  Blocked origin:', origin);
+            console.warn('⚠️ Blocked origin:', origin);
             callback(new Error('Not allowed by CORS'));
         }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie'],
     exposedHeaders: ['set-cookie'],
     maxAge: 86400,
     optionsSuccessStatus: 200
 };
 
-// ✅ FIX: Apply CORS - it handles OPTIONS automatically
 app.use(cors(corsOptions));
-
-// ✅ REMOVED: app.options('*', cors(corsOptions)) 
-// Not needed - CORS middleware already handles preflight OPTIONS requests
-
 app.use(express.json());
+
+// ✅ Enhanced request logging
+app.use((req, res, next) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] ${req.method} ${req.url}`);
+    
+    if (NODE_ENV === 'development') {
+        console.log('  Origin:', req.headers.origin);
+        console.log('  Cookies:', req.headers.cookie ? '✓ Present' : '✗ None');
+    }
+    
+    next();
+});
 
 // Rate limiting
 const limiter = rateLimit({
@@ -64,35 +89,34 @@ const limiter = rateLimit({
     message: 'Too many requests, please try again later.',
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => NODE_ENV === 'development' // Skip rate limiting in dev
 });
 
 app.use('/api/', limiter);
 
-// Request logging
-app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    if (NODE_ENV === 'development') {
-        console.log('Origin:', req.headers.origin);
-        console.log('Cookies:', req.headers.cookie);
-    }
-    next();
-});
-
-// Health check
+// ✅ Enhanced health check
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         environment: NODE_ENV,
         port: PORT,
         timestamp: new Date().toISOString(),
-        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-        frontendUrl: NODE_ENV === 'production' 
-            ? 'https://helpmarq-frontend.vercel.app'
-            : 'http://localhost:8080',
-        corsEnabled: true,
-        trustedOrigins: NODE_ENV === 'production'
-            ? ['https://helpmarq-frontend.vercel.app']
-            : ['http://localhost:8080', 'http://localhost:5173']
+        mongodb: {
+            status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+            host: mongoose.connection.host || 'not connected'
+        },
+        config: {
+            frontendUrl: process.env.FRONTEND_URL,
+            authSecretSet: !!process.env.BETTER_AUTH_SECRET,
+            resendKeySet: !!process.env.RESEND_API_KEY,
+            mongoUriSet: !!process.env.MONGODB_URI
+        },
+        cors: {
+            enabled: true,
+            allowedOrigins: NODE_ENV === 'production' 
+                ? ['https://helpmarq-frontend.vercel.app']
+                : ['http://localhost:8080', 'http://localhost:5173']
+        }
     });
 });
 
@@ -109,13 +133,22 @@ app.get('/', (req, res) => {
             projects: '/api/projects',
             reviewers: '/api/reviewers',
             applications: '/api/applications',
-            feedback: '/api/feedback'
+            feedback: '/api/feedback',
+            stats: '/api/stats',
+            notifications: '/api/notifications',
+            user: '/api/user/*'
         }
     });
 });
 
-// ✅ Mount Better Auth
-app.use('/api/auth/', toNodeHandler(auth));
+// ✅ Mount Better Auth with error handling
+try {
+    app.use('/api/auth/', toNodeHandler(auth));
+    console.log('✅ Better Auth mounted at /api/auth/');
+} catch (error) {
+    console.error('❌ Failed to mount Better Auth:', error);
+    process.exit(1);
+}
 
 // Import routes
 import authRouter from './routes/auth.js';
@@ -179,7 +212,7 @@ app.post('/api/verify-otp', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('OTP verification error:', error);
+        console.error('❌ OTP verification error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -187,75 +220,142 @@ app.post('/api/verify-otp', async (req, res) => {
     }
 });
 
-// 404 handler
+// ✅ Enhanced 404 handler
 app.use((req, res) => {
+    console.log('❌ 404:', req.method, req.path);
     res.status(404).json({
         success: false,
         error: 'Route not found',
-        path: req.path
+        path: req.path,
+        method: req.method
     });
 });
 
-// Global error handler
+// ✅ Enhanced error handler with detailed logging
 app.use((err, req, res, next) => {
-    console.error('Error:', err);
+    console.error('❌ =============== ERROR ===============');
+    console.error('Path:', req.path);
+    console.error('Method:', req.method);
+    console.error('Error:', err.message);
+    console.error('Stack:', err.stack);
+    console.error('======================================');
     
     const message = NODE_ENV === 'production' 
         ? 'Internal server error'
         : err.message;
     
-    res.status(500).json({
+    res.status(err.status || 500).json({
         success: false,
-        error: message
+        error: message,
+        ...(NODE_ENV === 'development' && { stack: err.stack })
     });
 });
 
-// ✅ CRITICAL FIX: Proper startup sequence
+// ✅ Proper startup sequence
 async function startServer() {
     try {
-        console.log('1️⃣  Connecting to MongoDB...');
+        console.log('1️⃣ Validating environment variables...');
+        
+        if (!process.env.MONGODB_URI) {
+            throw new Error('MONGODB_URI is required');
+        }
+        
+        if (!process.env.BETTER_AUTH_SECRET) {
+            throw new Error('BETTER_AUTH_SECRET is required');
+        }
+        
+        if (!process.env.RESEND_API_KEY) {
+            throw new Error('RESEND_API_KEY is required');
+        }
+        
+        console.log('✅ Environment variables validated');
+        
+        console.log('2️⃣ Connecting to MongoDB...');
         await connectDB();
         
-        console.log('2️⃣  Waiting for MongoDB connection...');
-        await new Promise((resolve) => {
+        console.log('3️⃣ Waiting for MongoDB connection...');
+        await new Promise((resolve, reject) => {
             if (mongoose.connection.readyState === 1) {
                 resolve();
             } else {
                 mongoose.connection.once('open', resolve);
+                mongoose.connection.once('error', reject);
+                
+                // Timeout after 30 seconds
+                setTimeout(() => reject(new Error('MongoDB connection timeout')), 30000);
             }
         });
         
         console.log('✅ MongoDB ready');
+        console.log('   Database:', mongoose.connection.db.databaseName);
+        console.log('   Host:', mongoose.connection.host);
         
-        console.log('3️⃣  Starting HTTP server...');
-        app.listen(PORT, '0.0.0.0', () => {
-            console.log('✅ Server started successfully!');
-            console.log(`🚀 HelpMarq API running on port ${PORT}`);
-            console.log(`📊 Environment: ${NODE_ENV}`);
-            console.log(`🔐 Better Auth configured`);
-            console.log(`🌐 Frontend URL: ${NODE_ENV === 'production' ? 'https://helpmarq-frontend.vercel.app' : 'http://localhost:8080'}`);
-            console.log(`🍪 CORS enabled with credentials`);
+        console.log('4️⃣ Starting HTTP server...');
+        const server = app.listen(PORT, '0.0.0.0', () => {
+            console.log('');
+            console.log('🎉 =======================================');
+            console.log('🚀 HelpMarq API is LIVE!');
+            console.log('📊 Environment:', NODE_ENV);
+            console.log('🔌 Port:', PORT);
+            console.log('🌐 Base URL:', NODE_ENV === 'production' 
+                ? 'https://helpmarq-backend.onrender.com'
+                : `http://localhost:${PORT}`);
+            console.log('🔐 Auth endpoint:', '/api/auth/*');
+            console.log('🗄️ MongoDB:', mongoose.connection.db.databaseName);
+            console.log('🍪 CORS enabled for:', NODE_ENV === 'production'
+                ? 'https://helpmarq-frontend.vercel.app'
+                : 'http://localhost:8080');
+            console.log('=======================================');
+            console.log('');
             
-            console.log('4️⃣  Starting cron jobs...');
+            console.log('5️⃣ Starting cron jobs...');
             startCronJobs();
             console.log('✅ Cron jobs started');
+            console.log('');
+            console.log('✓ Server fully initialized and ready for requests');
+        });
+        
+        // Handle server errors
+        server.on('error', (error) => {
+            console.error('❌ Server error:', error);
+            process.exit(1);
         });
         
     } catch (error) {
-        console.error('❌ Server startup failed:', error);
+        console.error('❌ =============== STARTUP FAILED ===============');
+        console.error('Error:', error.message);
+        console.error('Stack:', error.stack);
+        console.error('================================================');
         process.exit(1);
     }
 }
 
 startServer();
 
-// Graceful shutdown
+// ✅ Graceful shutdown
 const shutdown = async (signal) => {
-    console.log(`\n${signal} received, shutting down gracefully`);
-    await mongoose.connection.close();
-    console.log('MongoDB connection closed');
-    process.exit(0);
+    console.log(`\\n${signal} received, shutting down gracefully...`);
+    
+    try {
+        await mongoose.connection.close();
+        console.log('✓ MongoDB connection closed');
+        process.exit(0);
+    } catch (error) {
+        console.error('Error during shutdown:', error);
+        process.exit(1);
+    }
 };
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+
+// ✅ Unhandled rejection handler
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise);
+    console.error('Reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', error);
+    process.exit(1);
+});

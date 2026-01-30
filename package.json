@@ -7,7 +7,6 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "reset-db": "node reset-database.js"
-
   },
   "dependencies": {
     "better-auth": "^1.4.15",

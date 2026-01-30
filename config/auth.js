@@ -1,106 +1,93 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import mongoose from 'mongoose';
+import OTP from '../models/OTP.js';
+import { sendOTPEmail } from '../services/emailService.js';
 
+// ✅ CRITICAL: Better Auth configuration for production
 const auth = betterAuth({
     database: mongodbAdapter(mongoose.connection),
     
-    // ✅ CRITICAL FIX: Use exact production URL
-    baseURL: process.env.NODE_ENV === 'production' 
-        ? "https://helpmarq-backend.onrender.com"
-        : "http://localhost:3000",
-    
     emailAndPassword: {
         enabled: true,
-        autoSignIn: false,
         requireEmailVerification: true,
+        sendResetPassword: async ({ user, url }) => {
+            console.log('Password reset for:', user.email);
+            // TODO: Implement if needed
+        }
     },
     
+    session: {
+        expiresIn: 60 * 60 * 24 * 7, // 7 days
+        updateAge: 60 * 60 * 24, // 1 day
+        cookieCache: {
+            enabled: true,
+            maxAge: 5 * 60 // 5 minutes
+        }
+    },
+    
+    // ✅ PRODUCTION: Secure cookie settings
+    advanced: {
+        cookiePrefix: "helpmarq",
+        crossSubDomainCookies: {
+            enabled: true
+        },
+        defaultCookieAttributes: {
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            secure: process.env.NODE_ENV === 'production',
+            httpOnly: true,
+            path: '/',
+            domain: process.env.NODE_ENV === 'production' 
+                ? '.onrender.com' 
+                : undefined
+        }
+    },
+    
+    // ✅ PRODUCTION: Proper base URL
+    baseURL: process.env.NODE_ENV === 'production'
+        ? 'https://helpmarq-backend.onrender.com'
+        : 'http://localhost:3000',
+    
+    trustedOrigins: process.env.NODE_ENV === 'production'
+        ? ['https://helpmarq-frontend.vercel.app']
+        : ['http://localhost:8080', 'http://localhost:5173'],
+    
+    // ✅ Email verification with OTP
     emailVerification: {
         sendVerificationEmail: async ({ user, url, token }) => {
             try {
+                console.log('📧 Sending verification email to:', user.email);
+                
+                // Generate 6-digit OTP
                 const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
                 
-                console.log('📧 Generating OTP for:', user.email);
-                console.log('OTP Code:', otpCode);
-                
-                const OTP = (await import('../models/OTP.js')).default;
+                // Save OTP to database
                 await OTP.create({
-                    email: user.email,
+                    email: user.email.toLowerCase(),
                     code: otpCode,
-                    expiresAt: new Date(Date.now() + 10 * 60 * 1000)
+                    expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
                 });
                 
-                console.log('✅ OTP saved to database');
-                
-                const { sendOTPEmail } = await import('../services/emailService.js');
+                // Send email
                 await sendOTPEmail(user.email, otpCode);
                 
-                console.log('✅ OTP email sent to:', user.email);
-                return { success: true };
+                console.log('✅ Verification email sent successfully');
             } catch (error) {
-                console.error('❌ OTP send failed:', error);
-                console.error('Error stack:', error.stack);
-                return { success: false, error: error.message };
+                console.error('❌ Failed to send verification email:', error);
+                throw error;
             }
         },
+        
         sendOnSignUp: true,
-        autoSignInAfterVerification: false,
-        expiresIn: 10 * 60
+        autoSignInAfterVerification: false
     },
     
-    // ✅ FIX: Enhanced session configuration
-    session: {
-        cookieCache: {
-            enabled: true,
-            maxAge: 5 * 60
-        },
-        expiresIn: 60 * 60 * 24 * 7, // 7 days
-        updateAge: 60 * 60 * 24, // 1 day
-        // ✅ FIX: Use simple cookie name
-        cookieName: "auth_session",
-    },
-    
-    // ✅ CRITICAL FIX: Enhanced cookie options for cross-origin
-    advanced: {
-        cookieOptions: {
-            // ✅ MUST BE 'none' for cross-origin (Vercel ↔ Render)
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-            
-            // ✅ MUST BE true when sameSite is 'none'
-            secure: process.env.NODE_ENV === 'production',
-            
-            // ✅ HttpOnly for security
-            httpOnly: true,
-            
-            // ✅ Root path
-            path: '/',
-            
-            // ✅ FIX: Don't set domain - let browser handle it
-            // This is critical for cookies to work across Vercel/Render
-        }
-    },
-    
-    // ✅ CRITICAL FIX: Exact frontend origins only
-    trustedOrigins: process.env.NODE_ENV === 'production'
-        ? [
-            "https://helpmarq-frontend.vercel.app",
-            // Add www variant if needed
-            // "https://www.helpmarq-frontend.vercel.app",
-          ]
-        : [
-            "http://localhost:8080",
-            "http://127.0.0.1:8080",
-            "http://localhost:5173",
-            "http://127.0.0.1:5173"
-          ],
-    
-    // ✅ FIX: Add explicit logging in development
-    ...(process.env.NODE_ENV === 'development' && {
-        logger: {
-            level: 'debug'
-        }
-    })
+    // ✅ Rate limiting
+    rateLimit: {
+        enabled: true,
+        window: 60, // 1 minute
+        max: 10 // 10 requests per minute
+    }
 });
 
 export default auth;
