@@ -2,18 +2,48 @@ import express from 'express';
 import { requireAuth, getUserId } from '../middleware/auth.js';
 import Reviewer from '../models/Reviewer.js';
 import Project from '../models/Project.js';
+import UserProfile from '../models/UserProfile.js';
 import { sendWelcomeEmail } from '../services/emailService.js';
 
 const router = express.Router();
 
-// Get current user info and role
+// ✅ FIX: Get current user info and role (checks UserProfile first)
 router.get('/me', requireAuth, async (req, res) => {
     try {
         const userId = getUserId(req);
 
-        // Check if reviewer exists
+        // ✅ FIX: Check UserProfile FIRST (most reliable)
+        const userProfile = await UserProfile.findOne({ userId });
+        if (userProfile) {
+            console.log('✓ Found user profile with role:', userProfile.role);
+            
+            if (userProfile.role === 'reviewer') {
+                const reviewer = await Reviewer.findOne({ userId });
+                return res.json({
+                    success: true,
+                    role: 'reviewer',
+                    data: reviewer || { userId }
+                });
+            } else {
+                return res.json({
+                    success: true,
+                    role: 'owner',
+                    data: { userId }
+                });
+            }
+        }
+
+        // Fallback: Check if reviewer exists (for users created before UserProfile)
         const reviewer = await Reviewer.findOne({ userId });
         if (reviewer) {
+            // Create UserProfile for existing reviewer
+            await UserProfile.create({
+                userId,
+                email: reviewer.email,
+                name: reviewer.username,
+                role: 'reviewer'
+            });
+            
             return res.json({
                 success: true,
                 role: 'reviewer',
@@ -21,9 +51,17 @@ router.get('/me', requireAuth, async (req, res) => {
             });
         }
 
-        // Check if user has projects (is owner)
+        // Fallback: Check if user has projects (for existing owners)
         const projects = await Project.find({ ownerId: userId });
         if (projects.length > 0) {
+            // Create UserProfile for existing owner
+            await UserProfile.create({
+                userId,
+                email: projects[0].ownerEmail,
+                name: projects[0].ownerName,
+                role: 'owner'
+            });
+            
             return res.json({
                 success: true,
                 role: 'owner',
@@ -32,6 +70,7 @@ router.get('/me', requireAuth, async (req, res) => {
         }
 
         // New user, no role yet
+        console.log('No role found for user:', userId);
         res.json({
             success: true,
             role: null,
@@ -40,6 +79,56 @@ router.get('/me', requireAuth, async (req, res) => {
 
     } catch (error) {
         console.error('Get user error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ✅ NEW: Set owner role (called from role-select.html)
+router.post('/set-owner-role', requireAuth, async (req, res) => {
+    try {
+        const userId = getUserId(req);
+        const user = req.user; // From Better Auth session
+        
+        console.log('Setting owner role for user:', userId);
+        
+        // Check if profile already exists
+        const existing = await UserProfile.findOne({ userId });
+        if (existing) {
+            return res.status(400).json({
+                success: false,
+                error: 'User role already set'
+            });
+        }
+        
+        // Create UserProfile
+        const profile = await UserProfile.create({
+            userId,
+            email: user.email,
+            name: user.name || user.email,
+            role: 'owner'
+        });
+        
+        console.log('✓ Owner role saved to database');
+        
+        // Send welcome email
+        try {
+            await sendWelcomeEmail({ email: user.email, name: user.name }, 'owner');
+            console.log('✓ Welcome email sent');
+        } catch (emailError) {
+            console.error('❌ Welcome email failed (non-blocking):', emailError);
+        }
+        
+        res.json({
+            success: true,
+            message: 'Owner role set',
+            data: profile
+        });
+        
+    } catch (error) {
+        console.error('Set owner role error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -101,15 +190,24 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
             portfolio: portfolio || '',
             bio
         });
+        
+        // ✅ FIX: Create UserProfile too
+        await UserProfile.create({
+            userId,
+            email,
+            name: username,
+            role: 'reviewer'
+        });
+        
+        console.log('✓ Reviewer profile and UserProfile created');
 
-        // ✅ FIX: Send welcome email with better error handling
+        // Send welcome email
         try {
             console.log('Sending welcome email to:', email);
             await sendWelcomeEmail({ email, name: username }, 'reviewer');
             console.log('✓ Welcome email sent successfully');
         } catch (emailError) {
             console.error('❌ Welcome email failed (non-blocking):', emailError);
-            // Don't fail the request if email fails
         }
 
         res.status(201).json({
