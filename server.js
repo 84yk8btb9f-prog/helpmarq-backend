@@ -9,11 +9,8 @@ import { startCronJobs } from './services/cronJobs.js';
 import { toNodeHandler } from "better-auth/node";
 
 const app = express();
-
-// ✅ CRITICAL FIX: Trust proxy for Render
 app.set('trust proxy', 1);
 
-// ✅ FIX: Use Render's PORT or fallback
 const PORT = process.env.PORT || 10000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
@@ -24,14 +21,11 @@ console.log('🔌 Port:', PORT);
 // ✅ CRITICAL FIX: Enhanced CORS configuration
 const corsOptions = {
     origin: function (origin, callback) {
-        // ✅ Allow requests with no origin (mobile apps, Postman, etc.)
         if (!origin) return callback(null, true);
         
         const allowedOrigins = NODE_ENV === 'production' 
             ? [
                 'https://helpmarq-frontend.vercel.app',
-                // Add www variant if needed
-                // 'https://www.helpmarq-frontend.vercel.app',
               ]
             : [
                 'http://localhost:8080',
@@ -47,19 +41,19 @@ const corsOptions = {
             callback(new Error('Not allowed by CORS'));
         }
     },
-    credentials: true, // ✅ CRITICAL for cookies
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-    exposedHeaders: ['set-cookie'], // ✅ Allow frontend to see cookies
-    maxAge: 86400, // Cache preflight for 24 hours
-    optionsSuccessStatus: 200 // ✅ For legacy browsers
+    exposedHeaders: ['set-cookie'],
+    maxAge: 86400,
+    optionsSuccessStatus: 200
 };
 
-// ✅ FIX: Apply CORS before other middleware
+// ✅ FIX: Apply CORS - it handles OPTIONS automatically
 app.use(cors(corsOptions));
 
-// ✅ FIX: Handle preflight requests explicitly
-app.options('*', cors(corsOptions));
+// ✅ REMOVED: app.options('*', cors(corsOptions)) 
+// Not needed - CORS middleware already handles preflight OPTIONS requests
 
 app.use(express.json());
 
@@ -74,7 +68,7 @@ const limiter = rateLimit({
 
 app.use('/api/', limiter);
 
-// ✅ FIX: Enhanced request logging
+// Request logging
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
     if (NODE_ENV === 'development') {
@@ -84,7 +78,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// ✅ FIX: Enhanced health check
+// Health check
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
@@ -120,7 +114,7 @@ app.get('/', (req, res) => {
     });
 });
 
-// ✅ CRITICAL FIX: Mount Better Auth BEFORE other routes
+// ✅ Mount Better Auth
 app.use('/api/auth/', toNodeHandler(auth));
 
 // Import routes
@@ -219,11 +213,9 @@ app.use((err, req, res, next) => {
 // ✅ CRITICAL FIX: Proper startup sequence
 async function startServer() {
     try {
-        // 1. Connect to MongoDB FIRST
         console.log('1️⃣  Connecting to MongoDB...');
         await connectDB();
         
-        // 2. Wait for connection to be ready
         console.log('2️⃣  Waiting for MongoDB connection...');
         await new Promise((resolve) => {
             if (mongoose.connection.readyState === 1) {
@@ -235,7 +227,6 @@ async function startServer() {
         
         console.log('✅ MongoDB ready');
         
-        // 3. Start the server
         console.log('3️⃣  Starting HTTP server...');
         app.listen(PORT, '0.0.0.0', () => {
             console.log('✅ Server started successfully!');
@@ -245,7 +236,6 @@ async function startServer() {
             console.log(`🌐 Frontend URL: ${NODE_ENV === 'production' ? 'https://helpmarq-frontend.vercel.app' : 'http://localhost:8080'}`);
             console.log(`🍪 CORS enabled with credentials`);
             
-            // 4. Start cron jobs after server is running
             console.log('4️⃣  Starting cron jobs...');
             startCronJobs();
             console.log('✅ Cron jobs started');
@@ -257,7 +247,6 @@ async function startServer() {
     }
 }
 
-// Start the server
 startServer();
 
 // Graceful shutdown
