@@ -68,11 +68,9 @@ router.get('/', async (req, res) => {
 router.get('/available', async (req, res) => {
     const { reviewerId } = req.query;
     
-    // Get my applications
     const myApps = await Application.find({ reviewerId }).select('projectId');
     const appliedIds = myApps.map(app => app.projectId.toString());
     
-    // Get projects excluding ones I applied to
     const projects = await Project.find({
         status: 'pending',
         _id: { $nin: appliedIds }
@@ -146,10 +144,11 @@ router.post('/', requireAuth, async (req, res) => {
     }
 });
 
-// Delete project
-router.delete('/:id', requireAuth, async (req, res) => {
+// ✅ FIX 3: EDIT PROJECT
+router.put('/:id', requireAuth, async (req, res) => {
     try {
-        const project = await Project.findByIdAndDelete(req.params.id);
+        const userId = getUserId(req);
+        const project = await Project.findById(req.params.id);
 
         if (!project) {
             return res.status(404).json({
@@ -158,9 +157,94 @@ router.delete('/:id', requireAuth, async (req, res) => {
             });
         }
 
+        // Verify ownership
+        if (project.ownerId !== userId) {
+            return res.status(403).json({
+                success: false,
+                error: 'You can only edit your own projects'
+            });
+        }
+
+        // Update allowed fields
+        const allowedUpdates = ['title', 'description', 'type', 'link', 'xpReward', 'reviewersNeeded', 'deadline'];
+        const updates = {};
+        
+        allowedUpdates.forEach(field => {
+            if (req.body[field] !== undefined) {
+                updates[field] = req.body[field];
+            }
+        });
+
+        const updatedProject = await Project.findByIdAndUpdate(
+            req.params.id,
+            updates,
+            { new: true, runValidators: true }
+        );
+
         res.json({
             success: true,
-            message: 'Project deleted',
+            message: 'Project updated successfully',
+            data: updatedProject
+        });
+    } catch (error) {
+        if (error.name === 'ValidationError') {
+            const errors = Object.values(error.errors).map(err => err.message);
+            return res.status(400).json({
+                success: false,
+                error: errors[0]
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ✅ FIX 3: DELETE PROJECT
+router.delete('/:id', requireAuth, async (req, res) => {
+    try {
+        const userId = getUserId(req);
+        const project = await Project.findById(req.params.id);
+
+        if (!project) {
+            return res.status(404).json({
+                success: false,
+                error: 'Project not found'
+            });
+        }
+
+        // Verify ownership
+        if (project.ownerId !== userId) {
+            return res.status(403).json({
+                success: false,
+                error: 'You can only delete your own projects'
+            });
+        }
+
+        // Check if project has approved applications
+        const Application = (await import('../models/Application.js')).default;
+        const approvedCount = await Application.countDocuments({
+            projectId: project._id,
+            status: 'approved'
+        });
+
+        if (approvedCount > 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Cannot delete project with approved reviewers. Please complete the review process first.'
+            });
+        }
+
+        await Project.findByIdAndDelete(req.params.id);
+
+        // Delete related applications
+        await Application.deleteMany({ projectId: req.params.id });
+
+        res.json({
+            success: true,
+            message: 'Project deleted successfully',
             data: project
         });
     } catch (error) {
@@ -170,6 +254,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
         });
     }
 });
+
 // Get project details (full access only if approved)
 router.get('/:id/full', requireAuth, async (req, res) => {
     try {
@@ -188,7 +273,9 @@ router.get('/:id/full', requireAuth, async (req, res) => {
         
         let isApproved = false;
         if (!isOwner) {
-            // Check if reviewer is approved
+            const Reviewer = (await import('../models/Reviewer.js')).default;
+            const Application = (await import('../models/Application.js')).default;
+            
             const reviewer = await Reviewer.findOne({ userId });
             if (reviewer) {
                 const application = await Application.findOne({
