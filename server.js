@@ -168,10 +168,16 @@ app.use('/api/feedback', feedbackRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/notifications', notificationsRouter);
 
-// OTP verification endpoint
+
+// ✅ FIXED: OTP verification endpoint with auto-login support
 app.post('/api/verify-otp', async (req, res) => {
     try {
-        const { email, code } = req.body;
+        const { email, code, password } = req.body;
+        
+        console.log('=== OTP VERIFICATION REQUEST ===');
+        console.log('Email:', email);
+        console.log('Code received:', !!code);
+        console.log('Password for auto-login:', !!password);
         
         if (!email || !code) {
             return res.status(400).json({
@@ -182,6 +188,7 @@ app.post('/api/verify-otp', async (req, res) => {
         
         const OTP = (await import('./models/OTP.js')).default;
         
+        // Find and validate OTP
         const otpRecord = await OTP.findOne({
             email: email.toLowerCase(),
             code: code,
@@ -190,15 +197,18 @@ app.post('/api/verify-otp', async (req, res) => {
         });
         
         if (!otpRecord) {
+            console.log('❌ Invalid or expired OTP');
             return res.status(400).json({
                 success: false,
                 error: 'Invalid or expired code'
             });
         }
         
+        // Mark OTP as verified
         otpRecord.verified = true;
         await otpRecord.save();
         
+        // Update user email verification status in Better Auth
         await mongoose.connection.db.collection('user').updateOne(
             { email: email.toLowerCase() },
             { $set: { emailVerified: true } }
@@ -206,9 +216,54 @@ app.post('/api/verify-otp', async (req, res) => {
         
         console.log('✅ Email verified:', email);
         
+        // ✅ FIX: Attempt auto-login if password provided
+        let autoLoginSuccess = false;
+        
+        if (password) {
+            try {
+                console.log('🔐 Attempting auto-login after verification...');
+                
+                // Use Better Auth sign-in directly
+                const signInResult = await auth.api.signInEmail({
+                    body: {
+                        email: email.toLowerCase(),
+                        password: password,
+                    },
+                    headers: req.headers,
+                });
+                
+                if (signInResult) {
+                    console.log('✅ Auto-login successful');
+                    autoLoginSuccess = true;
+                    
+                    // Forward session cookies to client
+                    if (signInResult.headers) {
+                        const setCookieHeader = signInResult.headers.get('set-cookie');
+                        if (setCookieHeader) {
+                            res.setHeader('Set-Cookie', setCookieHeader);
+                        }
+                    }
+                    
+                    // Return success with user data
+                    return res.json({
+                        success: true,
+                        message: 'Email verified and logged in successfully',
+                        autoLogin: true,
+                        user: signInResult.user || { email: email.toLowerCase() }
+                    });
+                }
+            } catch (loginError) {
+                console.error('❌ Auto-login failed (non-blocking):', loginError.message);
+                // Don't fail the verification if auto-login fails
+                // User will need to login manually
+            }
+        }
+        
+        // If auto-login not attempted or failed, return basic success
         res.json({
             success: true,
-            message: 'Email verified successfully'
+            message: 'Email verified successfully',
+            autoLogin: false
         });
         
     } catch (error) {
@@ -219,6 +274,84 @@ app.post('/api/verify-otp', async (req, res) => {
         });
     }
 });
+
+// ========================================
+// OPTIONAL: RESEND OTP ENDPOINT
+// ========================================
+
+// Add this new endpoint for resending OTP codes
+app.post('/api/resend-otp', async (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email required'
+            });
+        }
+        
+        console.log('=== RESEND OTP REQUEST ===');
+        console.log('Email:', email);
+        
+        // Check if user exists
+        const user = await mongoose.connection.db.collection('user').findOne({
+            email: email.toLowerCase()
+        });
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+        
+        // Check if already verified
+        if (user.emailVerified) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email already verified'
+            });
+        }
+        
+        // Generate new OTP
+        const OTP = (await import('./models/OTP.js')).default;
+        const { sendOTPEmail } = await import('./services/emailService.js');
+        
+        // Invalidate old OTPs
+        await OTP.updateMany(
+            { email: email.toLowerCase(), verified: false },
+            { $set: { expiresAt: new Date() } }
+        );
+        
+        // Create new OTP
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        await OTP.create({
+            email: email.toLowerCase(),
+            code: code,
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+        });
+        
+        // Send OTP email
+        await sendOTPEmail(email, code);
+        
+        console.log('✅ New OTP sent to:', email);
+        
+        res.json({
+            success: true,
+            message: 'New verification code sent'
+        });
+        
+    } catch (error) {
+        console.error('❌ Resend OTP error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 
 // ✅ Enhanced 404 handler
 app.use((req, res) => {
