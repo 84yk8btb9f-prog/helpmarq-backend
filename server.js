@@ -157,6 +157,83 @@ app.get('/', (req, res) => {
     });
 });
 
+// ✅ CUSTOM SIGNUP ENDPOINT (before Better Auth mount)
+app.post('/api/auth/sign-up/email', async (req, res) => {
+    try {
+        const { email, password, name } = req.body;
+        
+        console.log('=== CUSTOM SIGNUP ===');
+        console.log('Email:', email);
+        
+        // Check if user already exists
+        const existingUser = await mongoose.connection.db.collection('user').findOne({
+            email: email.toLowerCase()
+        });
+        
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email already registered'
+            });
+        }
+        
+        // Create user with Better Auth (but don't send their default email)
+        const bcrypt = await import('bcrypt');
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        await mongoose.connection.db.collection('user').insertOne({
+            email: email.toLowerCase(),
+            name: name,
+            emailVerified: false,
+            createdAt: new Date()
+        });
+        
+        // Store password hash in Better Auth's account table
+        const user = await mongoose.connection.db.collection('user').findOne({
+            email: email.toLowerCase()
+        });
+        
+        await mongoose.connection.db.collection('account').insertOne({
+            userId: user._id.toString(),
+            accountId: email.toLowerCase(),
+            providerId: 'credential',
+            password: hashedPassword,
+            createdAt: new Date()
+        });
+        
+        // Generate and send OTP
+        const OTP = (await import('./models/OTP.js')).default;
+        const { sendOTPEmail } = await import('./services/emailService.js');
+        
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        await OTP.create({
+            email: email.toLowerCase(),
+            code: code,
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000)
+        });
+        
+        await sendOTPEmail(email, code);
+        
+        console.log('✅ User created and OTP sent');
+        
+        res.json({
+            success: true,
+            message: 'Account created. Check email for verification code.'
+        });
+        
+    } catch (error) {
+        console.error('❌ Signup error:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Then mount Better Auth AFTER
+app.use('/api/auth/', toNodeHandler(auth));
+
 // ✅ Mount Better Auth AFTER custom endpoint
 try {
     app.use('/api/auth/', toNodeHandler(auth));
@@ -173,7 +250,59 @@ try {
     console.error('❌ Failed to mount Better Auth:', error);
     process.exit(1);
 }
-
+// ✅ ADD: Manual OTP generation after Better Auth signup
+app.post('/api/auth/sign-up/email', async (req, res) => {
+    try {
+        const { email, password, name } = req.body;
+        
+        console.log('=== SIGNUP REQUEST ===');
+        console.log('Email:', email);
+        
+        // Step 1: Create user with Better Auth
+        const signUpResult = await auth.api.signUpEmail({
+            body: { email, password, name },
+            headers: req.headers
+        });
+        
+        if (!signUpResult) {
+            throw new Error('Signup failed');
+        }
+        
+        console.log('✅ User created in Better Auth');
+        
+        // Step 2: Generate and send OTP
+        const OTP = (await import('./models/OTP.js')).default;
+        const { sendOTPEmail } = await import('./services/emailService.js');
+        
+        // Generate 6-digit code
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        // Save OTP to database
+        await OTP.create({
+            email: email.toLowerCase(),
+            code: code,
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+        });
+        
+        // Send OTP email
+        await sendOTPEmail(email, code);
+        
+        console.log('✅ OTP sent to:', email);
+        
+        res.json({
+            success: true,
+            message: 'Account created. Check your email for verification code.',
+            user: signUpResult.user
+        });
+        
+    } catch (error) {
+        console.error('❌ Signup error:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message || 'Signup failed'
+        });
+    }
+});
 // Import routes
 import authRouter from './routes/auth.js';
 import projectsRouter from './routes/projects.js';
@@ -193,15 +322,12 @@ app.use('/api/stats', statsRouter);
 app.use('/api/notifications', notificationsRouter);
 
 
-// ✅ FIXED: OTP verification endpoint with auto-login support
 app.post('/api/verify-otp', async (req, res) => {
     try {
         const { email, code, password } = req.body;
         
-        console.log('=== OTP VERIFICATION REQUEST ===');
+        console.log('=== OTP VERIFICATION ===');
         console.log('Email:', email);
-        console.log('Code received:', !!code);
-        console.log('Password for auto-login:', !!password);
         
         if (!email || !code) {
             return res.status(400).json({
@@ -212,7 +338,7 @@ app.post('/api/verify-otp', async (req, res) => {
         
         const OTP = (await import('./models/OTP.js')).default;
         
-        // Find and validate OTP
+        // Validate OTP
         const otpRecord = await OTP.findOne({
             email: email.toLowerCase(),
             code: code,
@@ -221,69 +347,61 @@ app.post('/api/verify-otp', async (req, res) => {
         });
         
         if (!otpRecord) {
-            console.log('❌ Invalid or expired OTP');
             return res.status(400).json({
                 success: false,
                 error: 'Invalid or expired code'
             });
         }
         
-        // Mark OTP as verified
+        // Mark as verified
         otpRecord.verified = true;
         await otpRecord.save();
         
-        // Update user email verification status in Better Auth
+        // Update user email verification
         await mongoose.connection.db.collection('user').updateOne(
             { email: email.toLowerCase() },
             { $set: { emailVerified: true } }
         );
         
-        console.log('✅ Email verified:', email);
+        console.log('✅ Email verified');
         
-        // ✅ FIX: Attempt auto-login if password provided
-        let autoLoginSuccess = false;
-        
+        // ✅ FIX: Auto-login with proper session creation
         if (password) {
+            console.log('🔐 Creating session...');
+            
             try {
-                console.log('🔐 Attempting auto-login after verification...');
-                
-                // Use Better Auth sign-in directly
-                const signInResult = await auth.api.signInEmail({
+                // Use Better Auth's signIn directly
+                const signInResponse = await auth.api.signInEmail({
                     body: {
                         email: email.toLowerCase(),
-                        password: password,
+                        password: password
                     },
-                    headers: req.headers,
+                    headers: req.headers
                 });
                 
-                if (signInResult) {
-                    console.log('✅ Auto-login successful');
-                    autoLoginSuccess = true;
+                if (signInResponse && signInResponse.user) {
+                    console.log('✅ Session created');
                     
-                    // Forward session cookies to client
-                    if (signInResult.headers) {
-                        const setCookieHeader = signInResult.headers.get('set-cookie');
-                        if (setCookieHeader) {
-                            res.setHeader('Set-Cookie', setCookieHeader);
-                        }
+                    // ✅ CRITICAL: Forward Set-Cookie headers to client
+                    const cookies = signInResponse.headers?.get('set-cookie');
+                    if (cookies) {
+                        res.setHeader('Set-Cookie', cookies);
                     }
                     
-                    // Return success with user data
                     return res.json({
                         success: true,
-                        message: 'Email verified and logged in successfully',
+                        message: 'Email verified and logged in',
                         autoLogin: true,
-                        user: signInResult.user || { email: email.toLowerCase() }
+                        user: signInResponse.user
                     });
                 }
             } catch (loginError) {
-                console.error('❌ Auto-login failed (non-blocking):', loginError.message);
-                // Don't fail the verification if auto-login fails
-                // User will need to login manually
+                console.error('Auto-login failed:', loginError);
+                // Fall through to manual login required
             }
         }
         
-        // If auto-login not attempted or failed, return basic success
+        // No password or auto-login failed
         res.json({
             success: true,
             message: 'Email verified successfully',
@@ -291,7 +409,7 @@ app.post('/api/verify-otp', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ OTP verification error:', error);
+        console.error('❌ OTP error:', error);
         res.status(500).json({
             success: false,
             error: error.message
