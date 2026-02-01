@@ -156,45 +156,6 @@ app.get('/', (req, res) => {
         }
     });
 });
-// ✅ CUSTOM SIGN-IN ENDPOINT - Returns session token in response body
-app.post('/api/auth/custom-signin', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        
-        console.log('🔐 Custom sign-in request for:', email);
-        
-        // Call Better Auth's sign-in
-        const signInResult = await auth.api.signInEmail({
-            body: { email, password },
-            headers: req.headers,
-        });
-        
-        console.log('✅ Better Auth sign-in successful');
-        
-        // Get the session
-        const sessionResult = await auth.api.getSession({
-            headers: req.headers,
-        });
-        
-        // Return session token in response body (for cross-origin compatibility)
-        if (sessionResult && sessionResult.session) {
-            return res.json({
-                success: true,
-                user: sessionResult.user,
-                sessionToken: sessionResult.session.token,
-            });
-        } else {
-            throw new Error('Session not created');
-        }
-        
-    } catch (error) {
-        console.error('❌ Custom sign-in error:', error);
-        res.status(401).json({
-            success: false,
-            error: error.message || 'Sign in failed'
-        });
-    }
-});
 
 // ✅ Mount Better Auth AFTER custom endpoint
 try {
