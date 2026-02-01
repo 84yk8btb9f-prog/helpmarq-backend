@@ -1,3 +1,5 @@
+import auth from '../config/auth.js';
+
 export const requireAuth = async (req, res, next) => {
     try {
         // ✅ Check for token in Authorization header first
@@ -42,4 +44,9 @@ export const requireAuth = async (req, res, next) => {
             error: 'Invalid session'
         });
     }
+};
+
+// ✅ MUST EXPORT THIS - used by routes
+export const getUserId = (req) => {
+    return req.user?.id || null;
 };
