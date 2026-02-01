@@ -1,91 +1,74 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
-import mongoose from 'mongoose';
-import OTP from '../models/OTP.js';
-import { sendOTPEmail } from '../services/emailService.js';
+import mongoose from "mongoose";
 
-// ✅ CRITICAL: Better Auth configuration for production
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
 const auth = betterAuth({
     database: mongodbAdapter(mongoose.connection),
     
-    emailAndPassword: {
-        enabled: true,
-        requireEmailVerification: true,
-        sendResetPassword: async ({ user, url }) => {
-            console.log('Password reset for:', user.email);
-            // TODO: Implement if needed
-        }
-    },
+    secret: process.env.BETTER_AUTH_SECRET,
     
+    baseURL: IS_PRODUCTION
+        ? "https://helpmarq-backend.onrender.com"
+        : "http://localhost:3000",
+    
+    // ✅ Safari-compatible session config
     session: {
         expiresIn: 60 * 60 * 24 * 7, // 7 days
         updateAge: 60 * 60 * 24, // 1 day
         cookieCache: {
             enabled: true,
-            maxAge: 5 * 60 // 5 minutes
-        }
-    },
-    
-    // ✅ CRITICAL FIX: Remove domain restriction for cross-origin setup
-advanced: {
-    cookiePrefix: "helpmarq",
-    crossSubDomainCookies: {
-        enabled: false  // ← Changed to false (not same domain)
-    },
-    defaultCookieAttributes: {
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        secure: process.env.NODE_ENV === 'production',
-        httpOnly: true,
-        path: '/',
-        domain: undefined  // ← CRITICAL: Remove domain restriction
-    }
-},
-    
-    // ✅ PRODUCTION: Proper base URL
-    baseURL: process.env.NODE_ENV === 'production'
-        ? 'https://helpmarq-backend.onrender.com'
-        : 'http://localhost:3000',
-    
-    trustedOrigins: process.env.NODE_ENV === 'production'
-        ? ['https://helpmarq-frontend.vercel.app']
-        : ['http://localhost:8080', 'http://localhost:5173'],
-    
-    // ✅ Email verification with OTP
-    emailVerification: {
-        sendVerificationEmail: async ({ user, url, token }) => {
-            try {
-                console.log('📧 Sending verification email to:', user.email);
-                
-                // Generate 6-digit OTP
-                const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-                
-                // Save OTP to database
-                await OTP.create({
-                    email: user.email.toLowerCase(),
-                    code: otpCode,
-                    expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
-                });
-                
-                // Send email
-                await sendOTPEmail(user.email, otpCode);
-                
-                console.log('✅ Verification email sent successfully');
-            } catch (error) {
-                console.error('❌ Failed to send verification email:', error);
-                throw error;
-            }
+            maxAge: 5 * 60,
         },
-        
-        sendOnSignUp: true,
-        autoSignInAfterVerification: false
     },
     
-    // ✅ Rate limiting
-    rateLimit: {
+    // ✅ CRITICAL: Cross-origin cookie settings
+    advanced: {
+        cookies: IS_PRODUCTION
+            ? {
+                // Production: Cross-origin (Vercel → Render)
+                sameSite: "none",
+                secure: true,
+                httpOnly: true,
+                path: "/",
+                // Don't set domain - let browser handle it
+            }
+            : {
+                // Development: Same-origin
+                sameSite: "lax",
+                secure: false,
+                httpOnly: true,
+                path: "/",
+            },
+        
+        // ✅ Cross-origin configuration
+        crossSubDomainCookies: {
+            enabled: false, // Not needed for different domains
+        },
+    },
+    
+    // ✅ Email verification
+    emailAndPassword: {
         enabled: true,
-        window: 60, // 1 minute
-        max: 10 // 10 requests per minute
-    }
+        requireEmailVerification: true,
+        sendResetPassword: async ({ user, url }) => {
+            console.log(`Reset password URL for ${user.email}:`, url);
+        },
+    },
+    
+    // ✅ Trusted origins
+    trustedOrigins: IS_PRODUCTION
+        ? [
+            "https://helpmarq-frontend.vercel.app",
+            /\.vercel\.app$/, // All Vercel preview deployments
+        ]
+        : [
+            "http://localhost:8080",
+            "http://localhost:5173",
+            "http://127.0.0.1:8080",
+            "http://127.0.0.1:5173",
+        ],
 });
 
 export default auth;

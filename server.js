@@ -22,17 +22,15 @@ console.log('🔐 Auth Secret:', process.env.BETTER_AUTH_SECRET ? '✓ Set' : '�
 console.log('📧 Resend Key:', process.env.RESEND_API_KEY ? '✓ Set' : '✗ Missing');
 console.log('🗄️ MongoDB URI:', process.env.MONGODB_URI ? '✓ Set' : '✗ Missing');
 
-// ✅ CRITICAL FIX: Enhanced CORS configuration
+// ✅ Enhanced CORS for Safari
 const corsOptions = {
     origin: function (origin, callback) {
-        // Allow requests with no origin (mobile apps, Postman, etc.)
         if (!origin) return callback(null, true);
         
         const allowedOrigins = NODE_ENV === 'production' 
             ? [
                 'https://helpmarq-frontend.vercel.app',
-                'https://helpmarq-frontend.vercel.app/',
-                /\.vercel\.app$/  // Allow all Vercel preview deployments
+                /\.vercel\.app$/, // All Vercel deployments
               ]
             : [
                 'http://localhost:8080',
@@ -41,7 +39,6 @@ const corsOptions = {
                 'http://127.0.0.1:5173'
               ];
         
-        // Check if origin matches any allowed origin
         const isAllowed = allowedOrigins.some(allowed => {
             if (typeof allowed === 'string') {
                 return allowed === origin || allowed === origin + '/';
@@ -58,13 +55,27 @@ const corsOptions = {
             callback(new Error('Not allowed by CORS'));
         }
     },
-    credentials: true,
+    credentials: true, // ✅ CRITICAL for cookies
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie'],
-    exposedHeaders: ['set-cookie'],
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'Cookie',
+        'Set-Cookie',
+        'X-Requested-With',
+        'Accept',
+        'Origin',
+    ],
+    exposedHeaders: ['Set-Cookie'],
     maxAge: 86400,
-    optionsSuccessStatus: 200
+    optionsSuccessStatus: 200,
+    preflightContinue: false,
 };
+
+app.use(cors(corsOptions));
+
+// ✅ Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 
 app.use(cors(corsOptions));
 app.use(express.json());
