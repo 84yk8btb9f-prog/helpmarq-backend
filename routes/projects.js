@@ -1,5 +1,6 @@
 import express from 'express';
 import Project from '../models/Project.js';
+import Application from '../models/Application.js';
 import { requireAuth, getUserId } from '../middleware/auth.js';
 import { sendProjectSubmittedEmail } from '../services/emailService.js';
 

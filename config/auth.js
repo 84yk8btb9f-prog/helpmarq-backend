@@ -61,7 +61,6 @@ const auth = betterAuth({
     trustedOrigins: IS_PRODUCTION
         ? [
             "https://helpmarq-frontend.vercel.app",
-            /\.vercel\.app$/, // All Vercel preview deployments
         ]
         : [
             "http://localhost:8080",
