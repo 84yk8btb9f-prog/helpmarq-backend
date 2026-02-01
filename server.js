@@ -71,6 +71,16 @@ const corsOptions = {
     optionsSuccessStatus: 200,
     preflightContinue: false,
 };
+// ✅ Cookie debugging middleware
+app.use((req, res, next) => {
+    console.log('=== REQUEST DEBUG ===');
+    console.log('Path:', req.path);
+    console.log('Origin:', req.headers.origin);
+    console.log('Cookies:', req.headers.cookie ? 'Present' : 'MISSING');
+    console.log('Cookie header:', req.headers.cookie);
+    console.log('====================');
+    next();
+});
 
 app.use(cors(corsOptions));
 app.use(express.json());
