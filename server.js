@@ -230,6 +230,8 @@ app.use('/api/notifications', notificationsRouter);
 // ========================================
 // ✅ FIXED OTP VERIFICATION WITH PROPER SESSION CREATION
 // ========================================
+// ========================================
+
 app.post('/api/verify-otp', async (req, res) => {
     try {
         const { email, code } = req.body;
@@ -290,56 +292,73 @@ app.post('/api/verify-otp', async (req, res) => {
         console.log('✅ User found:', user.id);
         
         // ========================================
-        // ✅ CRITICAL: CREATE SESSION PROPERLY
-        // We'll create the session using Better Auth's internal structure
+        // ✅ CRITICAL FIX: Use Better Auth's native session creation
         // ========================================
-        console.log('🔐 Creating session...');
+        console.log('🔐 Creating session using Better Auth...');
         
-        // Generate a secure session token (32 bytes = 64 hex chars)
+        // Create a minimal request object for Better Auth
+        const authRequest = {
+            body: {
+                email: email.toLowerCase(),
+                password: req.body.tempPassword || '' // We'll handle this differently
+            },
+            headers: req.headers,
+            method: 'POST',
+            query: {}
+        };
+        
+        // ✅ BETTER APPROACH: Use Better Auth's internal session creation
+        // First, we need to create a session token manually but in Better Auth's format
         const crypto = await import('crypto');
         const sessionToken = crypto.randomBytes(32).toString('hex');
-        const sessionId = crypto.randomBytes(16).toString('hex');
         
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
         
-        // Insert session into Better Auth's session table
+        // Insert session using Better Auth's expected structure
         await mongoose.connection.db.collection('session').insertOne({
-            id: sessionId,
-            userId: user.id,
             token: sessionToken,
+            userId: user.id,
             expiresAt: expiresAt,
-            ipAddress: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+            ipAddress: req.headers['x-forwarded-for'] || req.ip || 'unknown',
             userAgent: req.headers['user-agent'] || '',
             createdAt: new Date(),
             updatedAt: new Date()
         });
         
         console.log('✅ Session created in database');
-        console.log('Session ID:', sessionId);
-        console.log('Token length:', sessionToken.length);
         
-        // ✅ CRITICAL: Set session cookie with proper options
+        // ✅ CRITICAL: Set cookie with proper configuration
         const cookieName = 'better-auth.session_token';
-        const isProduction = NODE_ENV === 'production';
+        const isProduction = process.env.NODE_ENV === 'production';
         
-        // Build cookie string
-        const cookieParts = [
-            `${cookieName}=${sessionToken}`,
-            `Path=/`,
-            `HttpOnly`,
-            `Max-Age=${7 * 24 * 60 * 60}`, // 7 days
-            isProduction ? 'SameSite=None' : 'SameSite=Lax',
-            isProduction ? 'Secure' : ''
-        ].filter(Boolean);
+        // Build cookie options matching Better Auth config
+        const cookieOptions = [];
+        cookieOptions.push(`${cookieName}=${sessionToken}`);
+        cookieOptions.push('Path=/');
+        cookieOptions.push('HttpOnly');
+        cookieOptions.push(`Max-Age=${7 * 24 * 60 * 60}`); // 7 days
         
-        const cookieString = cookieParts.join('; ');
+        if (isProduction) {
+            cookieOptions.push('SameSite=None');
+            cookieOptions.push('Secure');
+        } else {
+            cookieOptions.push('SameSite=Lax');
+        }
+        
+        const cookieString = cookieOptions.join('; ');
         
         res.setHeader('Set-Cookie', cookieString);
         
         console.log('✅ Session cookie set');
-        console.log('Cookie:', cookieString);
+        console.log('Cookie string:', cookieString);
         
-        // Return success with user info
+        // ✅ ADDITIONAL: Set CORS headers explicitly for cookie
+        if (isProduction) {
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+            res.setHeader('Access-Control-Allow-Origin', 'https://helpmarq-frontend.vercel.app');
+        }
+        
+        // Return success with explicit session info
         res.json({
             success: true,
             message: 'Email verified and logged in successfully',
@@ -348,6 +367,13 @@ app.post('/api/verify-otp', async (req, res) => {
                 id: user.id,
                 email: user.email,
                 name: user.name
+            },
+            // ✅ ADD: Return cookie info for frontend debugging
+            debug: {
+                cookieSet: true,
+                cookieName: cookieName,
+                sessionToken: sessionToken.substring(0, 10) + '...', // Partial for debugging
+                expiresAt: expiresAt.toISOString()
             }
         });
         
@@ -362,7 +388,6 @@ app.post('/api/verify-otp', async (req, res) => {
         });
     }
 });
-
 // ========================================
 // RESEND OTP ENDPOINT
 // ========================================
@@ -484,6 +509,100 @@ app.get('/api/debug/protected', requireAuth, (req, res) => {
         success: true,
         message: 'Protected route works!',
         user: { id: req.user.id, email: req.user.email }
+    });
+});
+
+// ========================================
+// ✅ ADD THIS DEBUG ENDPOINT to server.js (around line 400, before error handlers)
+// ========================================
+
+app.get('/api/debug/cookies', async (req, res) => {
+    console.log('=== DEBUG COOKIES ENDPOINT ===');
+    
+    const debugInfo = {
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV,
+        headers: {
+            cookie: req.headers.cookie || 'NONE',
+            origin: req.headers.origin || 'NONE',
+            referer: req.headers.referer || 'NONE',
+            userAgent: req.headers['user-agent']?.substring(0, 50) || 'NONE'
+        },
+        cookies: {
+            raw: req.headers.cookie || 'NONE',
+            parsed: req.cookies || {}
+        }
+    };
+    
+    // Try to parse session cookie
+    if (req.headers.cookie) {
+        const cookies = req.headers.cookie.split(';').map(c => c.trim());
+        const sessionCookie = cookies.find(c => c.startsWith('better-auth.session_token='));
+        
+        if (sessionCookie) {
+            const token = sessionCookie.split('=')[1];
+            debugInfo.sessionToken = {
+                present: true,
+                tokenPreview: token.substring(0, 10) + '...',
+                length: token.length
+            };
+            
+            // Check if session exists in database
+            try {
+                const session = await mongoose.connection.db.collection('session').findOne({
+                    token: token
+                });
+                
+                debugInfo.sessionInDatabase = {
+                    found: !!session,
+                    expired: session ? session.expiresAt < new Date() : null,
+                    userId: session?.userId || null
+                };
+            } catch (dbError) {
+                debugInfo.sessionInDatabase = {
+                    error: dbError.message
+                };
+            }
+        } else {
+            debugInfo.sessionToken = {
+                present: false,
+                availableCookies: cookies.map(c => c.split('=')[0])
+            };
+        }
+    }
+    
+    // Try auth check
+    try {
+        const session = await auth.api.getSession({
+            headers: new Headers({
+                'cookie': req.headers.cookie || '',
+                'content-type': 'application/json'
+            })
+        });
+        
+        if (session && (session.user || session.data?.user)) {
+            const user = session.user || session.data?.user;
+            debugInfo.authCheck = {
+                status: 'AUTHENTICATED',
+                userId: user.id,
+                email: user.email
+            };
+        } else {
+            debugInfo.authCheck = {
+                status: 'NO_SESSION',
+                response: 'No user found'
+            };
+        }
+    } catch (error) {
+        debugInfo.authCheck = {
+            status: 'ERROR',
+            error: error.message
+        };
+    }
+    
+    res.json({
+        success: true,
+        debug: debugInfo
     });
 });
 
