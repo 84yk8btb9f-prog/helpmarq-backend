@@ -157,51 +157,27 @@ app.get('/', (req, res) => {
     });
 });
 
-// ✅ CUSTOM SIGNUP ENDPOINT (before Better Auth mount)
+// ✅ CUSTOM SIGNUP - Use Better Auth's signup then add OTP
 app.post('/api/auth/sign-up/email', async (req, res) => {
     try {
         const { email, password, name } = req.body;
         
-        console.log('=== CUSTOM SIGNUP ===');
+        console.log('=== SIGNUP REQUEST ===');
         console.log('Email:', email);
         
-        // Check if user already exists
-        const existingUser = await mongoose.connection.db.collection('user').findOne({
-            email: email.toLowerCase()
+        // Step 1: Use Better Auth's built-in signup (it handles password hashing)
+        const signupResult = await auth.api.signUpEmail({
+            body: { email, password, name },
+            headers: req.headers
         });
         
-        if (existingUser) {
-            return res.status(400).json({
-                success: false,
-                error: 'Email already registered'
-            });
+        if (!signupResult) {
+            throw new Error('Signup failed');
         }
         
-        // Create user with Better Auth (but don't send their default email)
-        const bcrypt = await import('bcrypt');
-        const hashedPassword = await bcrypt.hash(password, 10);
+        console.log('✅ Better Auth signup complete');
         
-        await mongoose.connection.db.collection('user').insertOne({
-            email: email.toLowerCase(),
-            name: name,
-            emailVerified: false,
-            createdAt: new Date()
-        });
-        
-        // Store password hash in Better Auth's account table
-        const user = await mongoose.connection.db.collection('user').findOne({
-            email: email.toLowerCase()
-        });
-        
-        await mongoose.connection.db.collection('account').insertOne({
-            userId: user._id.toString(),
-            accountId: email.toLowerCase(),
-            providerId: 'credential',
-            password: hashedPassword,
-            createdAt: new Date()
-        });
-        
-        // Generate and send OTP
+        // Step 2: Generate OTP
         const OTP = (await import('./models/OTP.js')).default;
         const { sendOTPEmail } = await import('./services/emailService.js');
         
@@ -215,7 +191,7 @@ app.post('/api/auth/sign-up/email', async (req, res) => {
         
         await sendOTPEmail(email, code);
         
-        console.log('✅ User created and OTP sent');
+        console.log('✅ OTP sent');
         
         res.json({
             success: true,
@@ -226,13 +202,11 @@ app.post('/api/auth/sign-up/email', async (req, res) => {
         console.error('❌ Signup error:', error);
         res.status(400).json({
             success: false,
-            error: error.message
+            error: error.message || 'Signup failed'
         });
     }
 });
 
-// Then mount Better Auth AFTER
-app.use('/api/auth/', toNodeHandler(auth));
 
 // ✅ Mount Better Auth AFTER custom endpoint
 try {
@@ -250,59 +224,7 @@ try {
     console.error('❌ Failed to mount Better Auth:', error);
     process.exit(1);
 }
-// ✅ ADD: Manual OTP generation after Better Auth signup
-app.post('/api/auth/sign-up/email', async (req, res) => {
-    try {
-        const { email, password, name } = req.body;
-        
-        console.log('=== SIGNUP REQUEST ===');
-        console.log('Email:', email);
-        
-        // Step 1: Create user with Better Auth
-        const signUpResult = await auth.api.signUpEmail({
-            body: { email, password, name },
-            headers: req.headers
-        });
-        
-        if (!signUpResult) {
-            throw new Error('Signup failed');
-        }
-        
-        console.log('✅ User created in Better Auth');
-        
-        // Step 2: Generate and send OTP
-        const OTP = (await import('./models/OTP.js')).default;
-        const { sendOTPEmail } = await import('./services/emailService.js');
-        
-        // Generate 6-digit code
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        
-        // Save OTP to database
-        await OTP.create({
-            email: email.toLowerCase(),
-            code: code,
-            expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
-        });
-        
-        // Send OTP email
-        await sendOTPEmail(email, code);
-        
-        console.log('✅ OTP sent to:', email);
-        
-        res.json({
-            success: true,
-            message: 'Account created. Check your email for verification code.',
-            user: signUpResult.user
-        });
-        
-    } catch (error) {
-        console.error('❌ Signup error:', error);
-        res.status(400).json({
-            success: false,
-            error: error.message || 'Signup failed'
-        });
-    }
-});
+
 // Import routes
 import authRouter from './routes/auth.js';
 import projectsRouter from './routes/projects.js';
