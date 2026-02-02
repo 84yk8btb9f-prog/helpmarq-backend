@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import connectDB from './config/database.js';
 import rateLimit from 'express-rate-limit';
 import auth from './config/auth.js';
@@ -84,6 +85,8 @@ app.use((req, res, next) => {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
+
 
 // ✅ Enhanced request logging
 app.use((req, res, next) => {
@@ -208,15 +211,7 @@ app.post('/api/auth/sign-up/email', async (req, res) => {
 });
 
 
-// ✅ Mount Better Auth AFTER custom endpoint
-try {
-    app.use('/api/auth/', toNodeHandler(auth));
-    console.log('✅ Better Auth mounted at /api/auth/');
-} catch (error) {
-    console.error('❌ Failed to mount Better Auth:', error);
-    process.exit(1);
-}
-// ✅ Mount Better Auth with error handling
+// Mount Better Auth
 try {
     app.use('/api/auth/', toNodeHandler(auth));
     console.log('✅ Better Auth mounted at /api/auth/');
@@ -287,41 +282,55 @@ app.post('/api/verify-otp', async (req, res) => {
         
         console.log('✅ Email verified');
         
-        // ✅ FIX: Auto-login with proper session creation
-        if (password) {
-            console.log('🔐 Creating session...');
-            
-            try {
-                // Use Better Auth's signIn directly
-                const signInResponse = await auth.api.signInEmail({
-                    body: {
-                        email: email.toLowerCase(),
-                        password: password
-                    },
-                    headers: req.headers
-                });
-                
-                if (signInResponse && signInResponse.user) {
-                    console.log('✅ Session created');
-                    
-                    // ✅ CRITICAL: Forward Set-Cookie headers to client
-                    const cookies = signInResponse.headers?.get('set-cookie');
-                    if (cookies) {
-                        res.setHeader('Set-Cookie', cookies);
-                    }
-                    
-                    return res.json({
-                        success: true,
-                        message: 'Email verified and logged in',
-                        autoLogin: true,
-                        user: signInResponse.user
-                    });
-                }
-            } catch (loginError) {
-                console.error('Auto-login failed:', loginError);
-                // Fall through to manual login required
-            }
+        // ✅ FIX: Auto-login with manual session creation
+if (password) {
+    console.log('🔐 Creating session...');
+    
+    try {
+        // Create session directly using Better Auth's session manager
+        const user = await mongoose.connection.db.collection('user').findOne({
+            email: email.toLowerCase()
+        });
+        
+        if (!user) {
+            throw new Error('User not found');
         }
+        
+        // Create session using Better Auth
+        const session = await auth.api.session.create({
+            userId: user._id.toString(),
+            userAgent: req.headers['user-agent'],
+            ip: req.ip || req.headers['x-forwarded-for']
+        });
+        
+        if (session) {
+            console.log('✅ Session created:', session.token);
+            
+            // Set session cookie
+            res.cookie('better-auth.session_token', session.token, {
+                httpOnly: true,
+                secure: NODE_ENV === 'production',
+                sameSite: NODE_ENV === 'production' ? 'none' : 'lax',
+                maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+                path: '/'
+            });
+            
+            return res.json({
+                success: true,
+                message: 'Email verified and logged in',
+                autoLogin: true,
+                user: {
+                    id: user._id.toString(),
+                    email: user.email,
+                    name: user.name
+                }
+            });
+        }
+    } catch (loginError) {
+        console.error('❌ Auto-login failed:', loginError);
+        // Fall through to manual login required
+    }
+}
         
         // No password or auto-login failed
         res.json({
