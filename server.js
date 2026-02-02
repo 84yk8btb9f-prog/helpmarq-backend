@@ -241,7 +241,7 @@ app.use('/api/notifications', notificationsRouter);
 
 app.post('/api/verify-otp', async (req, res) => {
     try {
-        const { email, code, password } = req.body;
+        const { email, code } = req.body;
         
         console.log('=== OTP VERIFICATION ===');
         console.log('Email:', email);
@@ -270,11 +270,11 @@ app.post('/api/verify-otp', async (req, res) => {
             });
         }
         
-        // Mark as verified
+        // Mark OTP as verified
         otpRecord.verified = true;
         await otpRecord.save();
         
-        // Update user email verification
+        // ✅ CRITICAL: Update emailVerified in Better Auth's user collection
         await mongoose.connection.db.collection('user').updateOne(
             { email: email.toLowerCase() },
             { $set: { emailVerified: true } }
@@ -282,57 +282,7 @@ app.post('/api/verify-otp', async (req, res) => {
         
         console.log('✅ Email verified');
         
-        // ✅ FIX: Auto-login with manual session creation
-if (password) {
-    console.log('🔐 Creating session...');
-    
-    try {
-        // Create session directly using Better Auth's session manager
-        const user = await mongoose.connection.db.collection('user').findOne({
-            email: email.toLowerCase()
-        });
-        
-        if (!user) {
-            throw new Error('User not found');
-        }
-        
-        // Create session using Better Auth
-        const session = await auth.api.session.create({
-            userId: user._id.toString(),
-            userAgent: req.headers['user-agent'],
-            ip: req.ip || req.headers['x-forwarded-for']
-        });
-        
-        if (session) {
-            console.log('✅ Session created:', session.token);
-            
-            // Set session cookie
-            res.cookie('better-auth.session_token', session.token, {
-                httpOnly: true,
-                secure: NODE_ENV === 'production',
-                sameSite: NODE_ENV === 'production' ? 'none' : 'lax',
-                maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-                path: '/'
-            });
-            
-            return res.json({
-                success: true,
-                message: 'Email verified and logged in',
-                autoLogin: true,
-                user: {
-                    id: user._id.toString(),
-                    email: user.email,
-                    name: user.name
-                }
-            });
-        }
-    } catch (loginError) {
-        console.error('❌ Auto-login failed:', loginError);
-        // Fall through to manual login required
-    }
-}
-        
-        // No password or auto-login failed
+        // Simple response - frontend will handle sign-in
         res.json({
             success: true,
             message: 'Email verified successfully',
@@ -340,7 +290,7 @@ if (password) {
         });
         
     } catch (error) {
-        console.error('❌ OTP error:', error);
+        console.error('❌ OTP verification error:', error);
         res.status(500).json({
             success: false,
             error: error.message
