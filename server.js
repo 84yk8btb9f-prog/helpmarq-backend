@@ -230,7 +230,7 @@ app.use('/api/notifications', notificationsRouter);
 // ========================================
 // ✅ FIXED OTP VERIFICATION WITH PROPER SESSION CREATION
 // ========================================
-// ========================================
+
 
 app.post('/api/verify-otp', async (req, res) => {
     try {
@@ -238,7 +238,6 @@ app.post('/api/verify-otp', async (req, res) => {
         
         console.log('=== OTP VERIFICATION START ===');
         console.log('Email:', email);
-        console.log('Code provided:', !!code);
         
         if (!email || !code) {
             return res.status(400).json({
@@ -270,52 +269,77 @@ app.post('/api/verify-otp', async (req, res) => {
         // STEP 2: Mark OTP as verified
         otpRecord.verified = true;
         await otpRecord.save();
-        console.log('✅ OTP marked as verified');
         
-        // STEP 3: Update emailVerified in Better Auth's user collection
-        const updateResult = await mongoose.connection.db.collection('user').updateOne(
-            { email: email.toLowerCase() },
-            { $set: { emailVerified: true } }
-        );
-        
-        console.log('✅ Email verified in database, updated:', updateResult.modifiedCount, 'user(s)');
-        
-        // STEP 4: Get the user
+        // STEP 3: Get user from database
         const user = await mongoose.connection.db.collection('user').findOne({
             email: email.toLowerCase()
         });
         
         if (!user) {
-            throw new Error('User not found after verification');
+            throw new Error('User not found');
         }
         
-        console.log('✅ User found:', user.id);
+        console.log('✅ User found:', user.id, user.email);
         
         // ========================================
-        // ✅ CRITICAL FIX: Use Better Auth's native session creation
+        // ✅ CRITICAL: CLEAR ALL EXISTING SESSIONS FOR THIS USER
         // ========================================
-        console.log('🔐 Creating session using Better Auth...');
+        console.log('🧹 Clearing existing sessions for user:', user.id);
         
-        // Create a minimal request object for Better Auth
-        const authRequest = {
-            body: {
-                email: email.toLowerCase(),
-                password: req.body.tempPassword || '' // We'll handle this differently
-            },
-            headers: req.headers,
-            method: 'POST',
-            query: {}
-        };
+        const deleteResult = await mongoose.connection.db.collection('session').deleteMany({
+            userId: user.id
+        });
         
-        // ✅ BETTER APPROACH: Use Better Auth's internal session creation
-        // First, we need to create a session token manually but in Better Auth's format
+        console.log('✅ Deleted', deleteResult.deletedCount, 'existing sessions');
+        
+        // ========================================
+        // ✅ CRITICAL: CLEAR OLD COOKIES FROM BROWSER
+        // ========================================
+        const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+        const cookieName = 'better-auth.session_token';
+        
+        // Send cookie deletion header
+        const clearCookieOptions = [
+            `${cookieName}=deleted`,
+            'Path=/',
+            'Max-Age=0',
+            'Expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        ];
+        
+        if (IS_PRODUCTION) {
+            clearCookieOptions.push('SameSite=None');
+            clearCookieOptions.push('Secure');
+        } else {
+            clearCookieOptions.push('SameSite=Lax');
+        }
+        
+        // Clear old cookie first
+        res.setHeader('Set-Cookie', clearCookieOptions.join('; '));
+        
+        console.log('✅ Sent cookie clearing header');
+        
+        // STEP 4: Update emailVerified
+        await mongoose.connection.db.collection('user').updateOne(
+            { email: email.toLowerCase() },
+            { $set: { emailVerified: true } }
+        );
+        
+        console.log('✅ Email verified in database');
+        
+        // ========================================
+        // ✅ CRITICAL: CREATE NEW FRESH SESSION
+        // ========================================
+        console.log('🔐 Creating new session...');
+        
         const crypto = await import('crypto');
         const sessionToken = crypto.randomBytes(32).toString('hex');
+        const sessionId = crypto.randomBytes(16).toString('hex');
         
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
         
-        // Insert session using Better Auth's expected structure
+        // Insert new session
         await mongoose.connection.db.collection('session').insertOne({
+            id: sessionId,
             token: sessionToken,
             userId: user.id,
             expiresAt: expiresAt,
@@ -325,63 +349,75 @@ app.post('/api/verify-otp', async (req, res) => {
             updatedAt: new Date()
         });
         
-        console.log('✅ Session created in database');
+        console.log('✅ New session created:', sessionId);
+        console.log('Session userId:', user.id);
+        console.log('Session token (first 10):', sessionToken.substring(0, 10));
         
-        // ✅ CRITICAL: Set cookie with proper configuration
-        const cookieName = 'better-auth.session_token';
-        const isProduction = process.env.NODE_ENV === 'production';
+        // ========================================
+        // ✅ SET NEW SESSION COOKIE
+        // ========================================
+        const newCookieOptions = [
+            `${cookieName}=${sessionToken}`,
+            'Path=/',
+            'HttpOnly',
+            `Max-Age=${7 * 24 * 60 * 60}` // 7 days
+        ];
         
-        // Build cookie options matching Better Auth config
-        const cookieOptions = [];
-        cookieOptions.push(`${cookieName}=${sessionToken}`);
-        cookieOptions.push('Path=/');
-        cookieOptions.push('HttpOnly');
-        cookieOptions.push(`Max-Age=${7 * 24 * 60 * 60}`); // 7 days
-        
-        if (isProduction) {
-            cookieOptions.push('SameSite=None');
-            cookieOptions.push('Secure');
+        if (IS_PRODUCTION) {
+            newCookieOptions.push('SameSite=None');
+            newCookieOptions.push('Secure');
+            // Set domain for production
+            newCookieOptions.push('Domain=.vercel.app');
         } else {
-            cookieOptions.push('SameSite=Lax');
+            newCookieOptions.push('SameSite=Lax');
         }
         
-        const cookieString = cookieOptions.join('; ');
+        const newCookieString = newCookieOptions.join('; ');
         
-        res.setHeader('Set-Cookie', cookieString);
+        // Set new cookie (will override the clear cookie)
+        res.setHeader('Set-Cookie', newCookieString);
         
-        console.log('✅ Session cookie set');
-        console.log('Cookie string:', cookieString);
+        console.log('✅ New session cookie set');
+        console.log('Cookie string:', newCookieString);
         
-        // ✅ ADDITIONAL: Set CORS headers explicitly for cookie
-        if (isProduction) {
+        // ========================================
+        // ✅ EXPLICIT CORS FOR COOKIES
+        // ========================================
+        if (IS_PRODUCTION) {
             res.setHeader('Access-Control-Allow-Credentials', 'true');
             res.setHeader('Access-Control-Allow-Origin', 'https://helpmarq-frontend.vercel.app');
+            res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie');
         }
         
-        // Return success with explicit session info
+        // ========================================
+        // ✅ RETURN SUCCESS WITH VERIFICATION DATA
+        // ========================================
         res.json({
             success: true,
-            message: 'Email verified and logged in successfully',
-            sessionEstablished: true,
+            message: 'Email verified successfully',
             user: {
                 id: user.id,
                 email: user.email,
                 name: user.name
             },
-            // ✅ ADD: Return cookie info for frontend debugging
-            debug: {
-                cookieSet: true,
-                cookieName: cookieName,
-                sessionToken: sessionToken.substring(0, 10) + '...', // Partial for debugging
+            session: {
+                created: true,
                 expiresAt: expiresAt.toISOString()
+            },
+            debug: {
+                oldSessionsCleared: deleteResult.deletedCount,
+                newSessionId: sessionId,
+                tokenPreview: sessionToken.substring(0, 10) + '...'
             }
         });
         
         console.log('=== OTP VERIFICATION COMPLETE ===');
+        console.log('User logged in:', user.email, '(ID:', user.id, ')');
         
     } catch (error) {
         console.error('❌ OTP verification error:', error);
-        console.error('Error stack:', error.stack);
+        console.error('Stack:', error.stack);
+        
         res.status(500).json({
             success: false,
             error: error.message
