@@ -374,6 +374,55 @@ app.post('/api/resend-otp', async (req, res) => {
     }
 });
 
+// Debug endpoints - Add before error handlers
+app.get('/api/debug/session', async (req, res) => {
+    console.log('=== DEBUG SESSION ===');
+    
+    const debugInfo = {
+        timestamp: new Date().toISOString(),
+        cookiesPresent: !!req.headers.cookie,
+        cookiePreview: req.headers.cookie ? req.headers.cookie.substring(0, 100) : 'NONE'
+    };
+    
+    try {
+        const session = await auth.api.getSession({
+            headers: new Headers({
+                'cookie': req.headers.cookie || '',
+                'content-type': 'application/json'
+            })
+        });
+        
+        if (session && (session.user || session.data?.user)) {
+            const user = session.user || session.data?.user;
+            debugInfo.session = {
+                status: 'VALID',
+                userId: user.id,
+                email: user.email
+            };
+        } else {
+            debugInfo.session = {
+                status: 'INVALID',
+                response: 'No user found'
+            };
+        }
+    } catch (error) {
+        debugInfo.session = {
+            status: 'ERROR',
+            error: error.message
+        };
+    }
+    
+    res.json({ success: true, debug: debugInfo });
+});
+
+app.get('/api/debug/protected', requireAuth, (req, res) => {
+    res.json({
+        success: true,
+        message: 'Protected route works!',
+        user: { id: req.user.id, email: req.user.email }
+    });
+});
+
 
 // ✅ Enhanced 404 handler
 app.use((req, res) => {
