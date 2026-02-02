@@ -8,6 +8,7 @@ import auth from './config/auth.js';
 import mongoose from 'mongoose';
 import { startCronJobs } from './services/cronJobs.js';
 import { toNodeHandler } from "better-auth/node";
+import { requireAuth } from './middleware/auth.js';
 
 const app = express();
 app.set('trust proxy', 1);
