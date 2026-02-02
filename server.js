@@ -73,21 +73,10 @@ const corsOptions = {
     optionsSuccessStatus: 200,
     preflightContinue: false,
 };
-// ✅ Cookie debugging middleware
-app.use((req, res, next) => {
-    console.log('=== REQUEST DEBUG ===');
-    console.log('Path:', req.path);
-    console.log('Origin:', req.headers.origin);
-    console.log('Cookies:', req.headers.cookie ? 'Present' : 'MISSING');
-    console.log('Cookie header:', req.headers.cookie);
-    console.log('====================');
-    next();
-});
 
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
-
 
 // ✅ Enhanced request logging
 app.use((req, res, next) => {
@@ -211,7 +200,6 @@ app.post('/api/auth/sign-up/email', async (req, res) => {
     }
 });
 
-
 // Mount Better Auth
 try {
     app.use('/api/auth/', toNodeHandler(auth));
@@ -239,13 +227,16 @@ app.use('/api/feedback', feedbackRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/notifications', notificationsRouter);
 
-
+// ========================================
+// ✅ FIXED OTP VERIFICATION WITH PROPER SESSION CREATION
+// ========================================
 app.post('/api/verify-otp', async (req, res) => {
     try {
         const { email, code } = req.body;
         
-        console.log('=== OTP VERIFICATION ===');
+        console.log('=== OTP VERIFICATION START ===');
         console.log('Email:', email);
+        console.log('Code provided:', !!code);
         
         if (!email || !code) {
             return res.status(400).json({
@@ -256,7 +247,7 @@ app.post('/api/verify-otp', async (req, res) => {
         
         const OTP = (await import('./models/OTP.js')).default;
         
-        // Validate OTP
+        // STEP 1: Validate OTP
         const otpRecord = await OTP.findOne({
             email: email.toLowerCase(),
             code: code,
@@ -265,32 +256,106 @@ app.post('/api/verify-otp', async (req, res) => {
         });
         
         if (!otpRecord) {
+            console.log('❌ Invalid or expired OTP');
             return res.status(400).json({
                 success: false,
                 error: 'Invalid or expired code'
             });
         }
         
-        // Mark OTP as verified
+        console.log('✅ OTP valid');
+        
+        // STEP 2: Mark OTP as verified
         otpRecord.verified = true;
         await otpRecord.save();
+        console.log('✅ OTP marked as verified');
         
-        // ✅ CRITICAL: Update emailVerified in Better Auth's user collection
+        // STEP 3: Update emailVerified in Better Auth's user collection
         const updateResult = await mongoose.connection.db.collection('user').updateOne(
             { email: email.toLowerCase() },
             { $set: { emailVerified: true } }
         );
         
-        console.log('✅ Email verified, updated:', updateResult.modifiedCount, 'user(s)');
+        console.log('✅ Email verified in database, updated:', updateResult.modifiedCount, 'user(s)');
         
-        // Simple response - frontend will handle sign-in properly
+        // STEP 4: Get the user
+        const user = await mongoose.connection.db.collection('user').findOne({
+            email: email.toLowerCase()
+        });
+        
+        if (!user) {
+            throw new Error('User not found after verification');
+        }
+        
+        console.log('✅ User found:', user.id);
+        
+        // ========================================
+        // ✅ CRITICAL: CREATE SESSION PROPERLY
+        // We'll create the session using Better Auth's internal structure
+        // ========================================
+        console.log('🔐 Creating session...');
+        
+        // Generate a secure session token (32 bytes = 64 hex chars)
+        const crypto = await import('crypto');
+        const sessionToken = crypto.randomBytes(32).toString('hex');
+        const sessionId = crypto.randomBytes(16).toString('hex');
+        
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+        
+        // Insert session into Better Auth's session table
+        await mongoose.connection.db.collection('session').insertOne({
+            id: sessionId,
+            userId: user.id,
+            token: sessionToken,
+            expiresAt: expiresAt,
+            ipAddress: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+            userAgent: req.headers['user-agent'] || '',
+            createdAt: new Date(),
+            updatedAt: new Date()
+        });
+        
+        console.log('✅ Session created in database');
+        console.log('Session ID:', sessionId);
+        console.log('Token length:', sessionToken.length);
+        
+        // ✅ CRITICAL: Set session cookie with proper options
+        const cookieName = 'better-auth.session_token';
+        const isProduction = NODE_ENV === 'production';
+        
+        // Build cookie string
+        const cookieParts = [
+            `${cookieName}=${sessionToken}`,
+            `Path=/`,
+            `HttpOnly`,
+            `Max-Age=${7 * 24 * 60 * 60}`, // 7 days
+            isProduction ? 'SameSite=None' : 'SameSite=Lax',
+            isProduction ? 'Secure' : ''
+        ].filter(Boolean);
+        
+        const cookieString = cookieParts.join('; ');
+        
+        res.setHeader('Set-Cookie', cookieString);
+        
+        console.log('✅ Session cookie set');
+        console.log('Cookie:', cookieString);
+        
+        // Return success with user info
         res.json({
             success: true,
-            message: 'Email verified successfully'
+            message: 'Email verified and logged in successfully',
+            sessionEstablished: true,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name
+            }
         });
+        
+        console.log('=== OTP VERIFICATION COMPLETE ===');
         
     } catch (error) {
         console.error('❌ OTP verification error:', error);
+        console.error('Error stack:', error.stack);
         res.status(500).json({
             success: false,
             error: error.message
@@ -299,10 +364,8 @@ app.post('/api/verify-otp', async (req, res) => {
 });
 
 // ========================================
-// OPTIONAL: RESEND OTP ENDPOINT
+// RESEND OTP ENDPOINT
 // ========================================
-
-// Add this new endpoint for resending OTP codes
 app.post('/api/resend-otp', async (req, res) => {
     try {
         const { email } = req.body;
@@ -375,7 +438,7 @@ app.post('/api/resend-otp', async (req, res) => {
     }
 });
 
-// Debug endpoints - Add before error handlers
+// Debug endpoints
 app.get('/api/debug/session', async (req, res) => {
     console.log('=== DEBUG SESSION ===');
     
@@ -424,7 +487,6 @@ app.get('/api/debug/protected', requireAuth, (req, res) => {
     });
 });
 
-
 // ✅ Enhanced 404 handler
 app.use((req, res) => {
     console.log('❌ 404:', req.method, req.path);
@@ -436,7 +498,7 @@ app.use((req, res) => {
     });
 });
 
-// ✅ Enhanced error handler with detailed logging
+// ✅ Enhanced error handler
 app.use((err, req, res, next) => {
     console.error('❌ =============== ERROR ===============');
     console.error('Path:', req.path);
@@ -486,7 +548,6 @@ async function startServer() {
                 mongoose.connection.once('open', resolve);
                 mongoose.connection.once('error', reject);
                 
-                // Timeout after 30 seconds
                 setTimeout(() => reject(new Error('MongoDB connection timeout')), 30000);
             }
         });
@@ -520,7 +581,6 @@ async function startServer() {
             console.log('✓ Server fully initialized and ready for requests');
         });
         
-        // Handle server errors
         server.on('error', (error) => {
             console.error('❌ Server error:', error);
             process.exit(1);
@@ -539,7 +599,7 @@ startServer();
 
 // ✅ Graceful shutdown
 const shutdown = async (signal) => {
-    console.log(`\\n${signal} received, shutting down gracefully...`);
+    console.log(`\n${signal} received, shutting down gracefully...`);
     
     try {
         await mongoose.connection.close();
@@ -554,7 +614,6 @@ const shutdown = async (signal) => {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-// ✅ Unhandled rejection handler
 process.on('unhandledRejection', (reason, promise) => {
     console.error('❌ Unhandled Rejection at:', promise);
     console.error('Reason:', reason);
