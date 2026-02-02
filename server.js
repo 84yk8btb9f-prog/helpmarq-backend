@@ -275,18 +275,17 @@ app.post('/api/verify-otp', async (req, res) => {
         await otpRecord.save();
         
         // ✅ CRITICAL: Update emailVerified in Better Auth's user collection
-        await mongoose.connection.db.collection('user').updateOne(
+        const updateResult = await mongoose.connection.db.collection('user').updateOne(
             { email: email.toLowerCase() },
             { $set: { emailVerified: true } }
         );
         
-        console.log('✅ Email verified');
+        console.log('✅ Email verified, updated:', updateResult.modifiedCount, 'user(s)');
         
-        // Simple response - frontend will handle sign-in
+        // Simple response - frontend will handle sign-in properly
         res.json({
             success: true,
-            message: 'Email verified successfully',
-            autoLogin: false
+            message: 'Email verified successfully'
         });
         
     } catch (error) {
