@@ -231,7 +231,6 @@ app.use('/api/notifications', notificationsRouter);
 // ✅ FIXED OTP VERIFICATION WITH PROPER SESSION CREATION
 // ========================================
 
-
 app.post('/api/verify-otp', async (req, res) => {
     try {
         const { email, code } = req.body;
@@ -271,23 +270,26 @@ app.post('/api/verify-otp', async (req, res) => {
         await otpRecord.save();
         
         // STEP 3: Get user from database
-        const user = await mongoose.connection.db.collection('user').findOne({
+        const userDoc = await mongoose.connection.db.collection('user').findOne({
             email: email.toLowerCase()
         });
         
-        if (!user) {
+        if (!userDoc) {
             throw new Error('User not found');
         }
         
-        console.log('✅ User found:', user.id, user.email);
+        // ✅ CRITICAL FIX: Convert ObjectId to string for Better Auth compatibility
+        const userId = userDoc._id.toString();
+        
+        console.log('✅ User found:', userId, userDoc.email);
         
         // ========================================
         // ✅ CRITICAL: CLEAR ALL EXISTING SESSIONS FOR THIS USER
         // ========================================
-        console.log('🧹 Clearing existing sessions for user:', user.id);
+        console.log('🧹 Clearing existing sessions for user:', userId);
         
         const deleteResult = await mongoose.connection.db.collection('session').deleteMany({
-            userId: user.id
+            userId: userId
         });
         
         console.log('✅ Deleted', deleteResult.deletedCount, 'existing sessions');
@@ -298,7 +300,7 @@ app.post('/api/verify-otp', async (req, res) => {
         const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         const cookieName = 'better-auth.session_token';
         
-        // Send cookie deletion header
+        // Send cookie deletion header first
         const clearCookieOptions = [
             `${cookieName}=deleted`,
             'Path=/',
@@ -312,9 +314,6 @@ app.post('/api/verify-otp', async (req, res) => {
         } else {
             clearCookieOptions.push('SameSite=Lax');
         }
-        
-        // Clear old cookie first
-        res.setHeader('Set-Cookie', clearCookieOptions.join('; '));
         
         console.log('✅ Sent cookie clearing header');
         
@@ -337,11 +336,11 @@ app.post('/api/verify-otp', async (req, res) => {
         
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
         
-        // Insert new session
+        // ✅ Insert new session with CORRECT userId (as string)
         await mongoose.connection.db.collection('session').insertOne({
             id: sessionId,
             token: sessionToken,
-            userId: user.id,
+            userId: userId, // ✅ Now properly set as string
             expiresAt: expiresAt,
             ipAddress: req.headers['x-forwarded-for'] || req.ip || 'unknown',
             userAgent: req.headers['user-agent'] || '',
@@ -350,7 +349,7 @@ app.post('/api/verify-otp', async (req, res) => {
         });
         
         console.log('✅ New session created:', sessionId);
-        console.log('Session userId:', user.id);
+        console.log('Session userId:', userId);
         console.log('Session token (first 10):', sessionToken.substring(0, 10));
         
         // ========================================
@@ -366,15 +365,15 @@ app.post('/api/verify-otp', async (req, res) => {
         if (IS_PRODUCTION) {
             newCookieOptions.push('SameSite=None');
             newCookieOptions.push('Secure');
-            // Set domain for production
-            newCookieOptions.push('Domain=.vercel.app');
+            // ✅ IMPORTANT: Don't set Domain for Vercel - let browser handle it
+            // Setting Domain=.vercel.app might cause issues
         } else {
             newCookieOptions.push('SameSite=Lax');
         }
         
         const newCookieString = newCookieOptions.join('; ');
         
-        // Set new cookie (will override the clear cookie)
+        // Set new cookie
         res.setHeader('Set-Cookie', newCookieString);
         
         console.log('✅ New session cookie set');
@@ -385,7 +384,7 @@ app.post('/api/verify-otp', async (req, res) => {
         // ========================================
         if (IS_PRODUCTION) {
             res.setHeader('Access-Control-Allow-Credentials', 'true');
-            res.setHeader('Access-Control-Allow-Origin', 'https://helpmarq-frontend.vercel.app');
+            res.setHeader('Access-Control-Allow-Origin', req.headers.origin || 'https://helpmarq-frontend.vercel.app');
             res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie');
         }
         
@@ -396,9 +395,9 @@ app.post('/api/verify-otp', async (req, res) => {
             success: true,
             message: 'Email verified successfully',
             user: {
-                id: user.id,
-                email: user.email,
-                name: user.name
+                id: userId, // ✅ Now properly set
+                email: userDoc.email,
+                name: userDoc.name
             },
             session: {
                 created: true,
@@ -412,7 +411,7 @@ app.post('/api/verify-otp', async (req, res) => {
         });
         
         console.log('=== OTP VERIFICATION COMPLETE ===');
-        console.log('User logged in:', user.email, '(ID:', user.id, ')');
+        console.log('User logged in:', userDoc.email, '(ID:', userId, ')');
         
     } catch (error) {
         console.error('❌ OTP verification error:', error);
