@@ -233,15 +233,15 @@ app.use('/api/notifications', notificationsRouter);
 
 app.post('/api/verify-otp', async (req, res) => {
     try {
-        const { email, code } = req.body;
+        const { email, code, password } = req.body; // ← ADD password
         
         console.log('=== OTP VERIFICATION START ===');
         console.log('Email:', email);
         
-        if (!email || !code) {
+        if (!email || !code || !password) {
             return res.status(400).json({
                 success: false,
-                error: 'Email and code required'
+                error: 'Email, code, and password required'
             });
         }
         
@@ -256,7 +256,6 @@ app.post('/api/verify-otp', async (req, res) => {
         });
         
         if (!otpRecord) {
-            console.log('❌ Invalid or expired OTP');
             return res.status(400).json({
                 success: false,
                 error: 'Invalid or expired code'
@@ -265,158 +264,69 @@ app.post('/api/verify-otp', async (req, res) => {
         
         console.log('✅ OTP valid');
         
-        // STEP 2: Mark OTP as verified
+        // STEP 2: Mark verified
         otpRecord.verified = true;
         await otpRecord.save();
         
-        // STEP 3: Get user from database
-        const userDoc = await mongoose.connection.db.collection('user').findOne({
-            email: email.toLowerCase()
-        });
-        
-        if (!userDoc) {
-            throw new Error('User not found');
-        }
-        
-        // ✅ CRITICAL FIX: Convert ObjectId to string for Better Auth compatibility
-        const userId = userDoc._id.toString();
-        
-        console.log('✅ User found:', userId, userDoc.email);
-        
-        // ========================================
-        // ✅ CRITICAL: CLEAR ALL EXISTING SESSIONS FOR THIS USER
-        // ========================================
-        console.log('🧹 Clearing existing sessions for user:', userId);
-        
-        const deleteResult = await mongoose.connection.db.collection('session').deleteMany({
-            userId: userId
-        });
-        
-        console.log('✅ Deleted', deleteResult.deletedCount, 'existing sessions');
-        
-        // ========================================
-        // ✅ CRITICAL: CLEAR OLD COOKIES FROM BROWSER
-        // ========================================
-        const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-        const cookieName = 'better-auth.session_token';
-        
-        // Send cookie deletion header first
-        const clearCookieOptions = [
-            `${cookieName}=deleted`,
-            'Path=/',
-            'Max-Age=0',
-            'Expires=Thu, 01 Jan 1970 00:00:00 GMT'
-        ];
-        
-        if (IS_PRODUCTION) {
-            clearCookieOptions.push('SameSite=None');
-            clearCookieOptions.push('Secure');
-        } else {
-            clearCookieOptions.push('SameSite=Lax');
-        }
-        
-        console.log('✅ Sent cookie clearing header');
-        
-        // STEP 4: Update emailVerified
+        // STEP 3: Update emailVerified
         await mongoose.connection.db.collection('user').updateOne(
             { email: email.toLowerCase() },
             { $set: { emailVerified: true } }
         );
         
-        console.log('✅ Email verified in database');
+        console.log('✅ Email verified');
         
         // ========================================
-        // ✅ CRITICAL: CREATE NEW FRESH SESSION
+        // ✅ CRITICAL FIX: USE BETTER AUTH SIGN-IN
         // ========================================
-        console.log('🔐 Creating new session...');
         
-        const crypto = await import('crypto');
-        const sessionToken = crypto.randomBytes(32).toString('hex');
-        const sessionId = crypto.randomBytes(16).toString('hex');
+        console.log('🔐 Signing in via Better Auth...');
         
-        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-        
-        // ✅ Insert new session with CORRECT userId (as string)
-        await mongoose.connection.db.collection('session').insertOne({
-            id: sessionId,
-            token: sessionToken,
-            userId: userId, // ✅ Now properly set as string
-            expiresAt: expiresAt,
-            ipAddress: req.headers['x-forwarded-for'] || req.ip || 'unknown',
-            userAgent: req.headers['user-agent'] || '',
-            createdAt: new Date(),
-            updatedAt: new Date()
+        // Use Better Auth's signInEmail API
+        const signInResponse = await auth.api.signInEmail({
+            body: { 
+                email: email.toLowerCase(), 
+                password: password 
+            },
+            headers: req.headers
         });
         
-        console.log('✅ New session created:', sessionId);
-        console.log('Session userId:', userId);
-        console.log('Session token (first 10):', sessionToken.substring(0, 10));
-        
-        // ========================================
-        // ✅ SET NEW SESSION COOKIE
-        // ========================================
-        const newCookieOptions = [
-            `${cookieName}=${sessionToken}`,
-            'Path=/',
-            'HttpOnly',
-            `Max-Age=${7 * 24 * 60 * 60}` // 7 days
-        ];
-        
-        if (IS_PRODUCTION) {
-            newCookieOptions.push('SameSite=None');
-            newCookieOptions.push('Secure');
-            // ✅ IMPORTANT: Don't set Domain for Vercel - let browser handle it
-            // Setting Domain=.vercel.app might cause issues
-        } else {
-            newCookieOptions.push('SameSite=Lax');
+        if (!signInResponse) {
+            throw new Error('Sign-in failed after verification');
         }
         
-        const newCookieString = newCookieOptions.join('; ');
+        console.log('✅ Better Auth sign-in successful');
         
-        // Set new cookie
-        res.setHeader('Set-Cookie', newCookieString);
+        // Better Auth sets the session cookie automatically
+        // Extract and forward it
+        const setCookieHeader = signInResponse.headers?.get('Set-Cookie') || 
+                               signInResponse.headers?.get('set-cookie');
         
-        console.log('✅ New session cookie set');
-        console.log('Cookie string:', newCookieString);
-        
-        // ========================================
-        // ✅ EXPLICIT CORS FOR COOKIES
-        // ========================================
-        if (IS_PRODUCTION) {
-            res.setHeader('Access-Control-Allow-Credentials', 'true');
-            res.setHeader('Access-Control-Allow-Origin', req.headers.origin || 'https://helpmarq-frontend.vercel.app');
-            res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie');
+        if (setCookieHeader) {
+            // Forward Better Auth's cookie to client
+            res.setHeader('Set-Cookie', setCookieHeader);
+            console.log('✅ Session cookie forwarded');
         }
         
-        // ========================================
-        // ✅ RETURN SUCCESS WITH VERIFICATION DATA
-        // ========================================
+        // Get user data
+        const userDoc = await mongoose.connection.db.collection('user').findOne({
+            email: email.toLowerCase()
+        });
+        
         res.json({
             success: true,
-            message: 'Email verified successfully',
+            message: 'Email verified and signed in',
             user: {
-                id: userId, // ✅ Now properly set
+                id: userDoc._id.toString(),
                 email: userDoc.email,
                 name: userDoc.name
-            },
-            session: {
-                created: true,
-                expiresAt: expiresAt.toISOString()
-            },
-            debug: {
-                oldSessionsCleared: deleteResult.deletedCount,
-                newSessionId: sessionId,
-                tokenPreview: sessionToken.substring(0, 10) + '...'
             }
         });
         
-        console.log('=== OTP VERIFICATION COMPLETE ===');
-        console.log('User logged in:', userDoc.email, '(ID:', userId, ')');
+        console.log('=== VERIFICATION COMPLETE ===');
         
     } catch (error) {
-        console.error('❌ OTP verification error:', error);
-        console.error('Stack:', error.stack);
-        
+        console.error('❌ Verification error:', error);
         res.status(500).json({
             success: false,
             error: error.message
