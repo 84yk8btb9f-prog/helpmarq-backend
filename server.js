@@ -230,18 +230,30 @@ app.use('/api/notifications', notificationsRouter);
 // ========================================
 // ✅ FIXED OTP VERIFICATION WITH PROPER SESSION CREATION
 // ========================================
+// ========================================
+// ✅ COMPLETE /api/verify-otp ENDPOINT FIX
+// Replace your current endpoint in server.js with this:
+// ========================================
 
 app.post('/api/verify-otp', async (req, res) => {
     try {
-        const { email, code, password } = req.body; // ← ADD password
+        const { email, code, password } = req.body;
         
         console.log('=== OTP VERIFICATION START ===');
         console.log('Email:', email);
+        console.log('Password provided:', !!password);
         
-        if (!email || !code || !password) {
+        if (!email || !code) {
             return res.status(400).json({
                 success: false,
-                error: 'Email, code, and password required'
+                error: 'Email and code required'
+            });
+        }
+        
+        if (!password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Password required for auto-login'
             });
         }
         
@@ -256,6 +268,7 @@ app.post('/api/verify-otp', async (req, res) => {
         });
         
         if (!otpRecord) {
+            console.log('❌ Invalid or expired OTP');
             return res.status(400).json({
                 success: false,
                 error: 'Invalid or expired code'
@@ -264,75 +277,108 @@ app.post('/api/verify-otp', async (req, res) => {
         
         console.log('✅ OTP valid');
         
-        // STEP 2: Mark verified
+        // STEP 2: Mark OTP as verified
         otpRecord.verified = true;
         await otpRecord.save();
         
-        // STEP 3: Update emailVerified
+        // STEP 3: Update emailVerified in user collection
         await mongoose.connection.db.collection('user').updateOne(
             { email: email.toLowerCase() },
             { $set: { emailVerified: true } }
         );
         
-        console.log('✅ Email verified');
+        console.log('✅ Email verified in database');
         
         // ========================================
-        // ✅ CRITICAL FIX: USE BETTER AUTH SIGN-IN
+        // ✅ CRITICAL FIX: USE BETTER AUTH'S SIGN-IN API
         // ========================================
         
-        console.log('🔐 Signing in via Better Auth...');
+        console.log('🔐 Signing in user via Better Auth...');
         
-        // Use Better Auth's signInEmail API
-        const signInResponse = await auth.api.signInEmail({
-            body: { 
-                email: email.toLowerCase(), 
-                password: password 
-            },
-            headers: req.headers
-        });
-        
-        if (!signInResponse) {
-            throw new Error('Sign-in failed after verification');
+        try {
+            // Use Better Auth's built-in signInEmail
+            const signInResponse = await auth.api.signInEmail({
+                body: { 
+                    email: email.toLowerCase(), 
+                    password: password 
+                },
+                headers: req.headers
+            });
+            
+            if (!signInResponse) {
+                throw new Error('Better Auth sign-in returned null');
+            }
+            
+            console.log('✅ Better Auth sign-in successful');
+            
+            // Better Auth automatically sets the session cookie
+            // We need to extract and forward it to the client
+            
+            // Get the Set-Cookie header from Better Auth's response
+            let authCookies;
+            
+            // Try different ways to get the cookie header
+            if (signInResponse.headers?.get) {
+                authCookies = signInResponse.headers.get('Set-Cookie') || 
+                             signInResponse.headers.get('set-cookie');
+            } else if (signInResponse.headers?.['set-cookie']) {
+                authCookies = signInResponse.headers['set-cookie'];
+            } else if (signInResponse.headers?.['Set-Cookie']) {
+                authCookies = signInResponse.headers['Set-Cookie'];
+            }
+            
+            if (authCookies) {
+                // Forward Better Auth's session cookie to the client
+                res.setHeader('Set-Cookie', authCookies);
+                console.log('✅ Session cookie forwarded to client');
+                console.log('Cookie preview:', typeof authCookies === 'string' 
+                    ? authCookies.substring(0, 100) + '...'
+                    : 'Array of cookies');
+            } else {
+                console.warn('⚠️ No Set-Cookie header found in Better Auth response');
+                console.log('Response headers:', Object.keys(signInResponse.headers || {}));
+            }
+            
+        } catch (signInError) {
+            console.error('❌ Better Auth sign-in failed:', signInError);
+            throw new Error('Auto-login failed: ' + signInError.message);
         }
         
-        console.log('✅ Better Auth sign-in successful');
-        
-        // Better Auth sets the session cookie automatically
-        // Extract and forward it
-        const setCookieHeader = signInResponse.headers?.get('Set-Cookie') || 
-                               signInResponse.headers?.get('set-cookie');
-        
-        if (setCookieHeader) {
-            // Forward Better Auth's cookie to client
-            res.setHeader('Set-Cookie', setCookieHeader);
-            console.log('✅ Session cookie forwarded');
-        }
-        
-        // Get user data
+        // Get user data for response
         const userDoc = await mongoose.connection.db.collection('user').findOne({
             email: email.toLowerCase()
         });
         
+        if (!userDoc) {
+            throw new Error('User not found after verification');
+        }
+        
+        const userId = userDoc._id.toString();
+        
         res.json({
             success: true,
-            message: 'Email verified and signed in',
+            message: 'Email verified and signed in successfully',
             user: {
-                id: userDoc._id.toString(),
+                id: userId,
                 email: userDoc.email,
                 name: userDoc.name
             }
         });
         
-        console.log('=== VERIFICATION COMPLETE ===');
+        console.log('=== OTP VERIFICATION COMPLETE ===');
+        console.log('User signed in:', userDoc.email, '(ID:', userId, ')');
         
     } catch (error) {
-        console.error('❌ Verification error:', error);
+        console.error('❌ OTP verification error:', error);
+        console.error('Stack:', error.stack);
+        
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
+
 // ========================================
 // RESEND OTP ENDPOINT
 // ========================================
