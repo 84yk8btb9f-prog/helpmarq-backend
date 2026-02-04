@@ -41,7 +41,7 @@ const wrap = (body) => `<!DOCTYPE html>
 
 <!-- HEADER — gradient + logo + tagline -->
 <tr><td style="padding:32px 40px;background-color:${B.primary};background:linear-gradient(135deg,${B.primary} 0%,${B.purple} 100%);text-align:center;">
-<p style="margin:0 0 6px;font-size:30px;font-weight:700;color:${B.white};">helpmarq</p>
+<p style="margin:0 0 6px;font-size:30px;font-weight:700;color:${B.white};">Helpmarq</p>
 <p style="margin:0;font-size:14px;color:${B.white};opacity:0.9;">Expert insights. Accessible pricing.</p>
 </td></tr>
 
@@ -52,7 +52,7 @@ ${body}
 
 <!-- FOOTER -->
 <tr><td style="padding:28px 40px;background-color:${B.lightBg};border-top:1px solid ${B.border};text-align:center;">
-<p style="margin:0 0 6px;font-size:13px;color:${B.muted};"><strong>helpmarq</strong> · Expert insights. Accessible pricing.</p>
+<p style="margin:0 0 6px;font-size:13px;color:${B.muted};"><strong>Helpmarq</strong> · Expert insights. Accessible pricing.</p>
 <p style="margin:0;font-size:13px;"><a href="https://helpmarq.com" style="color:${B.primary};text-decoration:none;">Website</a> · <a href="mailto:support@helpmarq.com" style="color:${B.primary};text-decoration:none;">Support</a></p>
 </td></tr>
 
@@ -76,7 +76,7 @@ const pm = (t) =>
 
 // Sign-off line
 const sign = () =>
-  `<p style="font-size:16px;color:${B.body};margin:24px 0 0;">— The helpmarq team</p>`;
+  `<p style="font-size:16px;color:${B.body};margin:24px 0 0;">— The Helpmarq team</p>`;
 
 // Primary CTA button (centered)
 const btn = (label, url) =>
@@ -136,11 +136,11 @@ const emailTemplates = {
 // data: { code, name? }
 // ──────────────────────────────────────────
 otpVerification: (data) => ({
-  subject: 'Verify your email – helpmarq',
+  subject: 'Verify your email – Helpmarq',
   html: wrap(`
     ${h1('Verify your email address')}
     ${p(`Hi ${data.name || 'there'},`)}
-    ${p('Thanks for signing up for helpmarq. Enter the code below to complete your registration.')}
+    ${p('Thanks for signing up for Helpmarq. Enter the code below to complete your registration.')}
     <div style="background-color:${B.cardBg};border-radius:12px;padding:24px;text-align:center;margin:24px 0;">
       <p style="margin:0 0 8px;font-size:13px;color:${B.muted};text-transform:uppercase;letter-spacing:1px;font-weight:600;">Verification Code</p>
       <p style="margin:0;font-size:46px;font-weight:700;color:${B.primary};letter-spacing:8px;font-family:'Courier New',monospace;">${data.code}</p>
@@ -155,12 +155,12 @@ otpVerification: (data) => ({
 // data: { name }
 // ──────────────────────────────────────────
 welcomeOwner: (data) => ({
-  subject: 'Welcome to helpmarq — Here\'s how to get started',
+  subject: 'Welcome to Helpmarq — Here\'s how to get started',
   html: wrap(`
-    ${h1('Welcome to helpmarq 👋')}
+    ${h1('Welcome to Helpmarq 👋')}
     ${p(`Hi ${data.name},`)}
     ${p("You're now part of a platform that turns uncertainty into confident action through verified, multi-perspective feedback.")}
-    ${box('What makes helpmarq different:', [
+    ${box('What makes Helpmarq different:', [
       '<strong>Multi-perspective reviews</strong> — Expert + practitioner + user feedback, not single opinions',
       '<strong>Structured insights</strong> — Organized, actionable feedback you can implement immediately',
       '<strong>48-hour delivery</strong> — Fast turnaround without sacrificing quality',
@@ -178,12 +178,12 @@ welcomeOwner: (data) => ({
 // data: { name, tier? }
 // ──────────────────────────────────────────
 welcomeReviewer: (data) => ({
-  subject: 'You\'re approved — Start reviewing on helpmarq',
+  subject: 'You\'re approved — Start reviewing on Helpmarq',
   html: wrap(`
     ${h1('You\'re approved! ✅')}
     ${p(`Hi ${data.name},`)}
-    ${p('Congratulations! Your reviewer profile has been approved. You can now start earning XP by providing valuable feedback on helpmarq.')}
-    ${box('How helpmarq works for reviewers:', [
+    ${p('Congratulations! Your reviewer profile has been approved. You can now start earning XP by providing valuable feedback on Helpmarq.')}
+    ${box('How Helpmarq works for reviewers:', [
       '<strong>Browse projects</strong> — Find projects that match your expertise and interests',
       '<strong>Apply to review</strong> — Submit applications for projects you\'re confident in',
       '<strong>Complete structured reviews</strong> — Use our templates for clear, organized feedback',
@@ -283,7 +283,7 @@ projectSubmitted: (data) => ({
   html: wrap(`
     ${h1('Project submitted successfully ✓')}
     ${p(`Hi ${data.ownerName},`)}
-    ${p(`We've received your project <strong>${data.projectTitle}</strong> and it's now live on helpmarq.`)}
+    ${p(`We've received your project <strong>${data.projectTitle}</strong> and it's now live on Helpmarq.`)}
     ${card([
       ['Project', data.projectTitle],
       ...(data.projectType   ? [['Type', data.projectType]]            : []),
