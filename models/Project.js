@@ -1,7 +1,3 @@
-// UPDATED PROJECT SCHEMA
-// File: backend/models/Project.js
-// Add the reviewFocusAreas field to the schema
-
 import mongoose from 'mongoose';
 
 const projectSchema = new mongoose.Schema({
@@ -25,10 +21,11 @@ const projectSchema = new mongoose.Schema({
         enum: ['website', 'app', 'design', 'pitch', 'business', 'other']
     },
     link: {
-        type: String,
-        required: true,
-        trim: true
-    },
+    type: String,
+    required: false,
+    default: '',
+    trim: true
+},
     imageUrl: {
         type: String,
         default: null
