@@ -32,7 +32,7 @@ const corsOptions = {
         const allowedOrigins = NODE_ENV === 'production' 
             ? [
                 'https://helpmarq-frontend.vercel.app',
-                /\.vercel\.app$/, // All Vercel deployments
+                /\.vercel\.app$/, 
               ]
             : [
                 'http://localhost:8080',
@@ -57,7 +57,7 @@ const corsOptions = {
             callback(new Error('Not allowed by CORS'));
         }
     },
-    credentials: true, // ✅ CRITICAL for cookies
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
         'Content-Type',
@@ -71,10 +71,13 @@ const corsOptions = {
     exposedHeaders: ['Set-Cookie'],
     maxAge: 86400,
     optionsSuccessStatus: 200,
-    preflightContinue: false,
+    preflightContinue: false, // ✅ This is already correct
 };
 
 app.use(cors(corsOptions));
+
+// ADD THIS RIGHT AFTER CORS MIDDLEWARE:
+app.options('*', cors(corsOptions)); 
 app.use(express.json());
 app.use(cookieParser());
 

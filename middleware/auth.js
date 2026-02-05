@@ -12,11 +12,13 @@ export const requireAuth = async (req, res, next) => {
         
         if (!cookieHeader) {
             console.log('❌ No cookies in request');
+            console.log('Request headers:', JSON.stringify(req.headers, null, 2)); // ✅ ADD THIS LINE
             return res.status(401).json({
                 success: false,
                 error: 'Authentication required'
             });
         }
+
         
         // ✅ CRITICAL: Call Better Auth's getSession with proper headers
         const sessionResponse = await auth.api.getSession({

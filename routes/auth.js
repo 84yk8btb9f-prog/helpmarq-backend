@@ -240,7 +240,9 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
         });
     }
 });
-
+router.options('/update-profile', (req, res) => {
+    res.status(200).end();
+});
 // Update profile (for reviewers and owners)
 router.patch('/update-profile', requireAuth, async (req, res) => {
     try {
