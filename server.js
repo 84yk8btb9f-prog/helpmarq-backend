@@ -75,9 +75,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
-// ADD THIS RIGHT AFTER CORS MIDDLEWARE:
-app.options('*', cors(corsOptions)); 
 app.use(express.json());
 app.use(cookieParser());
 
