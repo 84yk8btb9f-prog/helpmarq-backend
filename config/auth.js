@@ -28,7 +28,7 @@ const auth = betterAuth({
             secure: true,
             httpOnly: true,
             path: "/",
-            // ✅ ADD: Explicit cookie name
+            domain: undefined,
             name: "better-auth.session_token",
         } : {
             sameSite: "lax",
