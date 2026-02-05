@@ -241,4 +241,168 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
     }
 });
 
+// Update profile (for reviewers and owners)
+router.patch('/update-profile', requireAuth, async (req, res) => {
+    try {
+        const userId = getUserId(req);
+        
+        // Get current user profile to determine role
+        const userProfile = await UserProfile.findOne({ userId });
+        if (!userProfile) {
+            return res.status(404).json({
+                success: false,
+                error: 'Profile not found'
+            });
+        }
+
+        if (userProfile.role === 'reviewer') {
+            // Update reviewer profile
+            const { username, bio, expertise, experience, portfolio } = req.body;
+            const updates = {};
+
+            // Validate and build update object
+            if (username !== undefined) {
+                if (username.length < 3 || username.length > 50) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Username must be between 3 and 50 characters'
+                    });
+                }
+                
+                // Check if username is taken by another user
+                const existingUsername = await Reviewer.findOne({ 
+                    username, 
+                    userId: { $ne: userId } 
+                });
+                if (existingUsername) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Username already taken'
+                    });
+                }
+                
+                updates.username = username;
+            }
+
+            if (bio !== undefined) {
+                if (bio.length < 50 || bio.length > 500) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Bio must be between 50 and 500 characters'
+                    });
+                }
+                updates.bio = bio;
+            }
+
+            if (expertise !== undefined) {
+                const validExpertise = ['UI/UX Design', 'Web Development', 'Mobile Development', 
+                    'Graphic Design', 'Product Management', 'Marketing', 'Copywriting', 
+                    'Business Strategy', 'Data Analysis', 'Other'];
+                if (!validExpertise.includes(expertise)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Invalid expertise'
+                    });
+                }
+                updates.expertise = expertise;
+            }
+
+            if (experience !== undefined) {
+                const validExperience = ['0-1', '1-3', '3-5', '5-10', '10+'];
+                if (!validExperience.includes(experience)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Invalid experience level'
+                    });
+                }
+                updates.experience = experience;
+            }
+
+            if (portfolio !== undefined) {
+                updates.portfolio = portfolio.trim();
+            }
+
+            if (Object.keys(updates).length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'No valid fields to update'
+                });
+            }
+
+            // Update reviewer document
+            const reviewer = await Reviewer.findOneAndUpdate(
+                { userId },
+                { $set: updates },
+                { new: true, runValidators: true }
+            );
+
+            if (!reviewer) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Reviewer profile not found'
+                });
+            }
+
+            // Update UserProfile name if username changed
+            if (updates.username) {
+                await UserProfile.findOneAndUpdate(
+                    { userId },
+                    { $set: { name: updates.username } }
+                );
+            }
+
+            res.json({
+                success: true,
+                message: 'Profile updated successfully',
+                data: reviewer
+            });
+
+        } else if (userProfile.role === 'owner') {
+            // Update owner profile (limited fields)
+            const { name } = req.body;
+            
+            if (!name || name.trim().length < 2) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Name must be at least 2 characters'
+                });
+            }
+
+            // Update UserProfile
+            const updated = await UserProfile.findOneAndUpdate(
+                { userId },
+                { $set: { name: name.trim() } },
+                { new: true }
+            );
+
+            // Update all projects with new owner name
+            await Project.updateMany(
+                { ownerId: userId },
+                { $set: { ownerName: name.trim() } }
+            );
+
+            res.json({
+                success: true,
+                message: 'Profile updated successfully',
+                data: updated
+            });
+        }
+
+    } catch (error) {
+        console.error('Update profile error:', error);
+        
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                error: 'Username already taken'
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 export default router;
