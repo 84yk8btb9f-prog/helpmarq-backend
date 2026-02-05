@@ -167,7 +167,7 @@ router.put('/:id', requireAuth, async (req, res) => {
         }
 
         // Update allowed fields
-        const allowedUpdates = ['title', 'description', 'type', 'link', 'xpReward', 'reviewersNeeded', 'deadline'];
+        const allowedUpdates = ['title', 'description', 'type', 'link', 'xpReward', 'reviewersNeeded', 'deadline', 'reviewFocusAreas'];
         const updates = {};
         
         allowedUpdates.forEach(field => {

@@ -1,3 +1,7 @@
+// UPDATED PROJECT SCHEMA
+// File: backend/models/Project.js
+// Add the reviewFocusAreas field to the schema
+
 import mongoose from 'mongoose';
 
 const projectSchema = new mongoose.Schema({
@@ -32,7 +36,7 @@ const projectSchema = new mongoose.Schema({
     ownerId: {
         type: String,
         required: true,
-        index: true  // ← Keep this one
+        index: true
     },
     ownerName: {
         type: String,
@@ -50,11 +54,22 @@ const projectSchema = new mongoose.Schema({
         required: true,
         min: 50,
         max: 500,
-        index: true  // ← Add for sorting
+        index: true
     },
     deadline: {
         type: Date,
         required: true
+    },
+    // ✅ NEW FIELD: Review Focus Areas
+    reviewFocusAreas: {
+        type: [String],
+        default: [],
+        validate: {
+            validator: function(v) {
+                return v.length >= 1 && v.length <= 8;
+            },
+            message: 'Please select between 1 and 8 focus areas'
+        }
     },
     status: {
         type: String,
@@ -76,10 +91,5 @@ const projectSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
-
-// REMOVE THESE DUPLICATE INDEXES:
-// projectSchema.index({ ownerId: 1 });
-// projectSchema.index({ createdAt: -1 });
-// projectSchema.index({ xpReward: -1 });
 
 export default mongoose.model('Project', projectSchema);
