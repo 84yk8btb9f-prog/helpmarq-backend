@@ -37,12 +37,11 @@ const reviewerSchema = new mongoose.Schema({
         trim: true
     },
     bio: {
-        type: String,
-        required: false,
-        default: '',
-        minlength: 50,
-        maxlength: 500
-    },
+    type: String,
+    required: false,
+    default: '',
+    maxlength: 500
+},
     level: {
         type: Number,
         default: 1,
