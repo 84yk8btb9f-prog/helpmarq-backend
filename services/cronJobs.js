@@ -145,7 +145,6 @@ function stopCronJobs() {
 // Add to existing cronJobs.js
 
 import Message from '../models/Message.js';
-import Application from '../models/Application.js';
 import { sendEmail } from './emailService.js';
 
 // Check for unread messages older than 30 minutes
