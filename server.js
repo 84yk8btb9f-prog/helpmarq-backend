@@ -9,6 +9,7 @@ import mongoose from 'mongoose';
 import { startCronJobs } from './services/cronJobs.js';
 import { toNodeHandler } from "better-auth/node";
 import { requireAuth } from './middleware/auth.js';
+import messageRoutes from './routes/messages.js';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -226,6 +227,7 @@ app.use('/api/applications', applicationsRouter);
 app.use('/api/feedback', feedbackRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/messages', messageRoutes);
 
 // ========================================
 // ✅ FIXED OTP VERIFICATION WITH PROPER SESSION CREATION

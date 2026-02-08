@@ -142,4 +142,78 @@ function stopCronJobs() {
     console.log('Cron jobs stopped');
 }
 
+// Add to existing cronJobs.js
+
+import Message from '../models/Message.js';
+import Application from '../models/Application.js';
+import { sendEmail } from './emailService.js';
+
+// Check for unread messages older than 30 minutes
+export const checkUnreadMessages = async () => {
+    try {
+        const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+        
+        // Find unread messages older than 30 min, email not sent
+        const unreadMessages = await Message.find({
+            read: false,
+            emailSent: false,
+            createdAt: { $lt: thirtyMinutesAgo }
+        }).populate('applicationId');
+        
+        for (const message of unreadMessages) {
+            if (!message.applicationId) continue;
+            
+            const application = await Application.findById(message.applicationId)
+                .populate('projectId', 'ownerId ownerName title')
+                .populate('reviewerId', 'userId username email');
+            
+            if (!application) continue;
+            
+            // Determine recipient
+            let recipientEmail, recipientName;
+            
+            if (message.senderRole === 'owner') {
+                // Message from owner → notify reviewer
+                recipientEmail = application.reviewerId?.email;
+                recipientName = application.reviewerId?.username;
+            } else {
+                // Message from reviewer → notify owner
+                // Need to get owner email from Better Auth user
+                // For now, skip (owner email not in your schema)
+                // You'll need to fetch from Better Auth or add to project schema
+                continue;
+            }
+            
+            if (!recipientEmail) continue;
+            
+            // Send email
+            await sendEmail({
+                to: recipientEmail,
+                subject: `New message about "${application.projectId.title}"`,
+                html: `
+                    <h2>You have an unread message</h2>
+                    <p>Hi ${recipientName},</p>
+                    <p><strong>${message.senderName}</strong> sent you a message about the project "${application.projectId.title}":</p>
+                    <blockquote style="background: #f5f5f5; padding: 15px; border-left: 4px solid #007bff; margin: 20px 0;">
+                        ${message.text}
+                    </blockquote>
+                    <p><a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}" style="background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Reply Now</a></p>
+                `
+            });
+            
+            // Mark email as sent
+            message.emailSent = true;
+            await message.save();
+            
+            console.log(`✅ Unread message email sent to ${recipientEmail}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ Check unread messages error:', error);
+    }
+};
+
+// Run every 5 minutes
+cron.schedule('*/5 * * * *', checkUnreadMessages);
+
 export { startCronJobs, stopCronJobs };
