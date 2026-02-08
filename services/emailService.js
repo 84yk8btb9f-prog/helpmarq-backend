@@ -356,6 +356,22 @@ ratingReceived: (data) => ({
     ${btn('View Profile', `${B.app}/profile`)}
     ${sign()}
   `)
+}),
+// ──────────────────────────────────────────
+// 10. CHAT MESSAGE NOTIFICATION
+// data: { recipientName, senderName, messageText, projectTitle }
+// ──────────────────────────────────────────
+chatMessageNotification: (data) => ({
+  subject: `New message from ${data.senderName} about "${data.projectTitle}"`,
+  html: wrap(`
+    ${h1('You have a new message 💬')}
+    ${p(`Hi ${data.recipientName},`)}
+    ${p(`<strong>${data.senderName}</strong> sent you a message about the project "${data.projectTitle}":`)}
+    ${quote(data.messageText)}
+    ${btn('Reply Now', `${B.app}`)}
+    ${pm('You can respond directly from your dashboard.')}
+    ${sign()}
+  `)
 })
 
 };
@@ -492,4 +508,12 @@ export const sendRatingReceivedEmail = (reviewer, feedback, project) => {
     rating:       feedback.ownerRating,
     xpAwarded:    feedback.xpAwarded
   });
+};
+
+export const sendChatMessageEmail = (recipientEmail, data) => {
+  if (!recipientEmail || !data?.recipientName || !data?.senderName || !data?.messageText || !data?.projectTitle) {
+    console.error('Missing required parameters for chat message email');
+    return { success: false, error: 'Missing required chat notification data' };
+  }
+  return sendEmail('chatMessageNotification', recipientEmail, data);
 };

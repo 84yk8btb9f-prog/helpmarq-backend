@@ -146,6 +146,7 @@ function stopCronJobs() {
 
 import Message from '../models/Message.js';
 import { sendEmail } from './emailService.js';
+import { sendChatMessageEmail } from './emailService.js';
 
 // Check for unread messages older than 30 minutes
 export const checkUnreadMessages = async () => {
@@ -186,19 +187,12 @@ export const checkUnreadMessages = async () => {
             if (!recipientEmail) continue;
             
             // Send email
-            await sendEmail({
-                to: recipientEmail,
-                subject: `New message about "${application.projectId.title}"`,
-                html: `
-                    <h2>You have an unread message</h2>
-                    <p>Hi ${recipientName},</p>
-                    <p><strong>${message.senderName}</strong> sent you a message about the project "${application.projectId.title}":</p>
-                    <blockquote style="background: #f5f5f5; padding: 15px; border-left: 4px solid #007bff; margin: 20px 0;">
-                        ${message.text}
-                    </blockquote>
-                    <p><a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}" style="background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Reply Now</a></p>
-                `
-            });
+            await sendChatMessageEmail(recipientEmail, {
+    recipientName: recipientName,
+    senderName: message.senderName,
+    messageText: message.text,
+    projectTitle: application.projectId.title
+});
             
             // Mark email as sent
             message.emailSent = true;
