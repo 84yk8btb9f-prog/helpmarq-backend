@@ -286,15 +286,7 @@ router.patch('/update-profile', requireAuth, async (req, res) => {
                 updates.username = username;
             }
 
-            if (bio !== undefined) {
-                if (bio.length < 50 || bio.length > 500) {
-                    return res.status(400).json({
-                        success: false,
-                        error: 'Bio must be between 50 and 500 characters'
-                    });
-                }
-                updates.bio = bio;
-            }
+            // Bio is optional - no minimum validation
 
             if (expertise !== undefined) {
                 const validExpertise = ['UI/UX Design', 'Web Development', 'Mobile Development', 
