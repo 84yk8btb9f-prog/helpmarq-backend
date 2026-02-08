@@ -169,12 +169,6 @@ router.post('/create-reviewer', requireAuth, async (req, res) => {
             });
         }
 
-        if (!bio || bio.length < 50) {
-            return res.status(400).json({
-                success: false,
-                error: 'Bio must be at least 50 characters'
-            });
-        }
 
         // Check if reviewer already exists
         const existing = await Reviewer.findOne({ userId });
