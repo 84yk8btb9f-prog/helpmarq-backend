@@ -138,6 +138,11 @@ router.post('/set-owner-role', requireAuth, async (req, res) => {
 
 // Create reviewer profile
 router.post('/create-reviewer', requireAuth, async (req, res) => {
+     const { username, email, expertise, experience, portfolio, bio } = req.body;
+    
+    console.log('📝 CREATE REVIEWER REQUEST');
+    console.log('Bio received:', bio);
+    console.log('Bio length:', bio?.length);
     try {
         const userId = getUserId(req);
         const { username, email, expertise, experience, portfolio, bio } = req.body;
